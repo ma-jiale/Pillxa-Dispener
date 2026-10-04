@@ -112,9 +112,13 @@ namespace EZDose.MainFlow
         private string currentMedicineImageResourceId = string.Empty;
         private float currentMotorSpeed = 0f;
         private float currentServoAngle = 0f;
+        private float initialServoAngle;
+        private bool hasInitialServoSettings;
+        private float? finalManualServoAngle;
         private int medicineServoSession;
+        public int ActiveServoTuningSession => isWaitingForDispensingComplete ? medicineServoSession : -1;
         private string currentMedicineDosageSpec = string.Empty;
-        private float lastSetServoAngle = 0.8f;     // 记录最近一次配置的舵机角度
+        private float lastSetServoAngle = 0.7f;     // 记录最近一次配置的舵机角度
         private int currentPlate = 1;
         private int currentMedicineTotal = 0;
         private readonly List<int> optoPulseWidths = new List<int>();
@@ -983,6 +987,7 @@ namespace EZDose.MainFlow
             
             SetMotorStalled(false);
             medicineServoSession++;
+            finalManualServoAngle = null;
 
             // Store next medicine info for UI preview
             if (nextMed != null)
@@ -1000,9 +1005,11 @@ namespace EZDose.MainFlow
             var calibrationMgr = GetCalibrationManager();
             var (speed, angle) = calibrationMgr != null
                 ? calibrationMgr.GetSettingsOrDefault(med.MotorSpeed, med.ServoAngle)
-                : (0.3f, 0.8f);
+                : (0.3f, 0.7f);
 
             EZLog.D(EZLog.Module.Main, $"Configuring dispenser for '{med.MedicineName}': speed={speed:.2f}, angle={angle:.2f}");
+            initialServoAngle = angle;
+            hasInitialServoSettings = med.MotorSpeed > 0f && med.ServoAngle > 0f;
             var configured = await ConfigureDispenser(speed, angle);
             if (isDeviceLostAbort)
             {
@@ -1128,7 +1135,10 @@ namespace EZDose.MainFlow
                     med.DispensingDays);
                 
                 // Save average opto pulse width converted to motor speed and servo angle to server
-                await SavePulseWidthSettingsAsync(med);
+                if (!hasCountError)
+                {
+                    await SavePulseWidthSettingsAsync(med);
+                }
             }
 
             return success;
@@ -1644,6 +1654,34 @@ namespace EZDose.MainFlow
             var (newSpeed, newAngle) = calibrationMgr.CalculateSettingsFromPulseWidth(medianPulseWidth);
             EZLog.I(EZLog.Module.Main, $"Calculated settings from median pulse ({medianPulseWidth:F2}): motor={newSpeed:F2}, servo={newAngle:F2}");
 
+            float calculatedAngle = newAngle;
+            if (hasInitialServoSettings && !finalManualServoAngle.HasValue)
+            {
+                // Successful dispensing without manual intervention keeps the saved angle unchanged.
+                newAngle = initialServoAngle;
+                EZLog.I(EZLog.Module.Main, $"Keeping servo history without manual adjustment: servo={newAngle:F2}");
+            }
+            else
+            {
+                // Without history or manual input, the formula establishes the first calibration.
+                if (finalManualServoAngle.HasValue)
+                {
+                    newAngle = initialServoAngle * 0.7f + calculatedAngle * 0.3f;
+                    EZLog.I(EZLog.Module.Main, $"Servo history weighting: previous={initialServoAngle:F2}, calculated={calculatedAngle:F2}, blended={newAngle:F2}");
+
+                    // Only learn from the final successful manual opening, once per completed medicine.
+                    if (finalManualServoAngle.Value < initialServoAngle &&
+                        finalManualServoAngle.Value < calculatedAngle)
+                    {
+                        float historyBlendedAngle = newAngle;
+                        newAngle = historyBlendedAngle * 0.5f + finalManualServoAngle.Value * 0.5f;
+                        EZLog.I(EZLog.Module.Main, $"Manual servo weighting: blended={historyBlendedAngle:F2}, manual={finalManualServoAngle.Value:F2}, saved={newAngle:F2}");
+                    }
+                }
+
+                newAngle = Mathf.Clamp(newAngle, calibrationMgr.MinServoAngleLimit, calibrationMgr.MaxServoAngleLimit);
+            }
+
             // Update current medicine settings for UI display
             currentMotorSpeed = newSpeed;
             currentServoAngle = newAngle;
@@ -1731,11 +1769,16 @@ namespace EZDose.MainFlow
         }
 
         /// <summary>
-        /// 同步更新最后一次设置的舵机角度值（用于平滑过渡起始值）
+        /// Record a successful manual command; only active, matching medicine sessions can learn it.
         /// </summary>
-        public void UpdateLastSetServoAngle(float angle)
+        public void RecordManualServoAngle(float angle, int session)
         {
+            if (session >= 0 && session != medicineServoSession) return;
             lastSetServoAngle = angle;
+            if (session >= 0 && isWaitingForDispensingComplete)
+            {
+                finalManualServoAngle = angle;
+            }
         }
 
         private void MarkPatientCompleted(string patientId)

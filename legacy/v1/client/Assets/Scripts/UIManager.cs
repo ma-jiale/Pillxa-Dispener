@@ -2342,12 +2342,14 @@ namespace EZDose.UI
             {
                 EZLog.I(EZLog.Module.UI, $"Manual servo tuning released: servo={servoAngle:F2}");
 
+                var main = MainController.Instance;
+                int servoSession = main != null ? main.ActiveServoTuningSession : -1;
                 var servoTcs = new TaskCompletionSource<bool>();
                 dispenser.SetServoAngle(servoAngle, success => 
                 { 
-                    if (success && MainController.Instance != null)
+                    if (success && main != null)
                     {
-                        MainController.Instance.UpdateLastSetServoAngle(servoAngle);
+                        main.RecordManualServoAngle(servoAngle, servoSession);
                     }
                     servoTcs.TrySetResult(success); 
                 });

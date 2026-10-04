@@ -18,7 +18,7 @@ namespace EZDose.Calibration
         public const float MAX_SERVO_ANGLE = 1.0f;
 
         [Header("动态优化开关与门槛")]
-        [Tooltip("是否启用基于脉冲宽度的动态参数优化。若未勾选/关闭，则始终使用默认参数 (motor=0.3, servo=0.8)")]
+        [Tooltip("是否启用基于脉冲宽度的动态参数优化。若未勾选/关闭，则始终使用默认参数 (motor=0.3, servo=0.7)")]
         [SerializeField] private bool enablePulseOptimization = false;
 
         [Tooltip("单次分药最少收集的脉冲样本数。少于此粒数时跳过参数优化更新（默认7粒）")]
@@ -26,7 +26,7 @@ namespace EZDose.Calibration
 
         [Header("默认回退参数 (未开启优化或未校准时使用)")]
         [SerializeField] private float defaultMotorSpeed = 0.3f;
-        [SerializeField] private float defaultServoAngle = 0.8f;
+        [SerializeField] private float defaultServoAngle = 0.7f;
 
         [Header("脉冲宽度 → 转盘速度计算配置")]
         [Tooltip("基准起始转盘速度（小圆片起步速度）")]
@@ -44,7 +44,7 @@ namespace EZDose.Calibration
 
         [Header("脉冲宽度 → 舵机角度计算配置")]
         [Tooltip("基准起始舵机角度（对应小圆片窄开度/大角度）")]
-        [SerializeField] private float baseServoAngle = 0.95f;
+        [SerializeField] private float baseServoAngle = 0.85f;
 
         [Tooltip("基准脉冲宽度（对应起步舵机角度）")]
         [SerializeField] private float baseServoPulseWidth = 5.0f;
@@ -210,7 +210,7 @@ namespace EZDose.Calibration
         /// Calculate dispenser motor speed and servo angle from median pulse width.
         /// MotorSpeed = Clamp(baseMotorSpeed + (pulseWidth - basePulseWidth) * kMotorSpeed, minLimit, maxLimit)
         /// ServoAngle uses piecewise calculation:
-        /// - Small & Medium pills (pulseWidth <= 13): keeps original gentle slope (0.95 -> 0.79)
+        /// - Small & Medium pills (pulseWidth <= 13): keeps original gentle slope (0.85 -> 0.69)
         /// - Large pills & Capsules (pulseWidth > 13): steep opening slope down to 0.10 for large capsules
         /// </summary>
         /// <param name="pulseWidth">Median optocoupler pulse width</param>
