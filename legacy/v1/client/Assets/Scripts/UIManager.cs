@@ -1119,7 +1119,7 @@ namespace EZDose.UI
             SetHomeScanDialogTitle("RFID 尚未绑定", isError: true);
             if (homeScanDialogMessageText != null)
             {
-                homeScanDialogMessageText.text = "该药盒的 RFID 尚未绑定患者，可继续使用摄像头扫描条码。";
+                homeScanDialogMessageText.text = $"RFID：{uid}\n该药盒的 RFID 尚未绑定患者，可继续使用摄像头扫描条码。";
             }
         }
 
