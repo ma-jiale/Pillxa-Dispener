@@ -17,8 +17,8 @@ os.makedirs(plots_dir, exist_ok=True)
 
 # 2. 读取 CSV 数据
 possible_paths = [
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../legacy/v1/client/Logs/pulse_records.csv")),
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "../legacy/v1/client/Logs/pulse_records.csv")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../client/Logs/pulse_records.csv")),
+    os.path.abspath(os.path.join(os.getcwd(), "Logs/pulse_records.csv")),
     os.path.abspath(os.path.join(os.getcwd(), "legacy/v1/client/Logs/pulse_records.csv")),
     os.path.abspath("pulse_records.csv"),
 ]

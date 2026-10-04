@@ -1,4 +1,7 @@
-{
+import json
+import os
+
+notebook_content = {
  "cells": [
   {
    "cell_type": "markdown",
@@ -11,7 +14,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -52,14 +55,14 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
     "# 自动查找 CSV 文件路径\n",
     "possible_paths = [\n",
-    "    os.path.abspath(os.path.join(os.getcwd(), \"../../legacy/v1/client/Logs/pulse_records.csv\")),\n",
-    "    os.path.abspath(os.path.join(os.getcwd(), \"../legacy/v1/client/Logs/pulse_records.csv\")),\n",
+    "    os.path.abspath(os.path.join(os.getcwd(), \"../../client/Logs/pulse_records.csv\")),\n",
+    "    os.path.abspath(os.path.join(os.getcwd(), \"client/Logs/pulse_records.csv\")),\n",
     "    os.path.abspath(os.path.join(os.getcwd(), \"legacy/v1/client/Logs/pulse_records.csv\")),\n",
     "    os.path.abspath(os.path.join(os.getcwd(), \"Logs/pulse_records.csv\")),\n",
     "    os.path.abspath(\"pulse_records.csv\")\n",
@@ -97,7 +100,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -135,7 +138,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -177,7 +180,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -218,7 +221,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -276,7 +279,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,
+   "execution_count": None,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -302,3 +305,9 @@
  "nbformat": 4,
  "nbformat_minor": 2
 }
+
+output_path = os.path.join(os.path.dirname(__file__), "pulse_analysis.ipynb")
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(notebook_content, f, ensure_ascii=False, indent=1)
+
+print(f"Successfully generated notebook at: {output_path}")

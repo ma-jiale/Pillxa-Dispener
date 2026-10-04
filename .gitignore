@@ -9,6 +9,10 @@
 [Mm]emoryCaptures/
 .utmp/
 
+# Unity recovery scenes are local editor state
+/legacy/v1/client/Assets/_Recovery/
+/legacy/v1/client/Assets/_Recovery.meta
+
 # Visual Studio 缓存
 .vs/
 *.csproj

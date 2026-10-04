@@ -93,16 +93,16 @@ The STM32 serial communication uses 115200 baud, but HC-06 defaults to 9600. The
 pip install pyserial
 
 # List available serial ports
-python hardware/hc06_baudrate_configurator.py --list
+python legacy/v1/hardware/hc06_baudrate_configurator.py --list
 
 # Modify baud rate (replace COM6 with your actual port)
-python hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
+python legacy/v1/hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
 ```
 
 #### Modify Bluetooth Name (Optional)
 
 ```bash
-python hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
+python legacy/v1/hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
 ```
 
 #### Voltage Conversion Circuit

@@ -130,16 +130,16 @@ STM32 串口通信波特率是 115200，但 HC-06 默认波特率是 9600，需�
 pip install pyserial
 
 # 列出可用串口
-python hardware/hc06_baudrate_configurator.py --list
+python legacy/v1/hardware/hc06_baudrate_configurator.py --list
 
 # 修改波特率（将 COM6 替换为您的实际端口）
-python hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
+python legacy/v1/hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
 ```
 
 ##### 修改蓝牙名称（可选）
 
 ```bash
-python hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
+python legacy/v1/hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
 ```
 
 ##### 电压转换电路

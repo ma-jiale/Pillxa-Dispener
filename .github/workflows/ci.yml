@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Check syntax without importing hardware tools
-        run: python -m compileall -q hardware
+        run: python -m compileall -q legacy/v1/hardware
 
   gate:
     if: always()
