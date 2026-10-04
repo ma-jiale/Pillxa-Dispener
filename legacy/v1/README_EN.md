@@ -15,11 +15,11 @@
 
 ---
 
-> **V1 Archive Notice**:
+> **V1 Maintenance Notice**:
 > - `client`: Unity (Windows x64 / Android compatibility)
 > - `server`: Flask + SQLite
 > 
-> This directory preserves the validated Mdis V1 historical baseline for behavioral reference. Business code is not modified.
+> As of 2026-10-04, V1 is the only maintained generation and the V2 rebuild is retired. Development continues in this directory. Frozen baselines remain available through Git tags and do not describe the current working tree. See the [repository README](../../README.md).
 
 ## 📖 Overview
 
@@ -93,16 +93,16 @@ The STM32 serial communication uses 115200 baud, but HC-06 defaults to 9600. The
 pip install pyserial
 
 # List available serial ports
-python hardware/hc06_baudrate_configurator.py --list
+python legacy/v1/hardware/hc06_baudrate_configurator.py --list
 
 # Modify baud rate (replace COM6 with your actual port)
-python hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
+python legacy/v1/hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
 ```
 
 #### Modify Bluetooth Name (Optional)
 
 ```bash
-python hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
+python legacy/v1/hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
 ```
 
 #### Voltage Conversion Circuit

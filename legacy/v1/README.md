@@ -15,11 +15,11 @@
 
 ---
 
-> **V1 历史归档说明**：
+> **V1 当前维护说明**：
 > - `client`: Unity (Windows x64 / Android 兼容)
 > - `server`: Flask + SQLite
 > 
-> 本目录为已验证的 Mdis V1 历史基线，仅作行为事实参考，不对其业务逻辑进行二次修改。
+> 2026-10-04 起，V1 是唯一维护版本，V2 重建已终止。本目录继续承载日常开发；冻结基线由 Git 标签保留，不等同于当前工作区。维护规则见 [仓库根说明](../../README.md)。
 
 ## 项目简介
 
@@ -130,16 +130,16 @@ STM32 串口通信波特率是 115200，但 HC-06 默认波特率是 9600，需�
 pip install pyserial
 
 # 列出可用串口
-python hardware/hc06_baudrate_configurator.py --list
+python legacy/v1/hardware/hc06_baudrate_configurator.py --list
 
 # 修改波特率（将 COM6 替换为您的实际端口）
-python hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
+python legacy/v1/hardware/hc06_baudrate_configurator.py --port COM6 --current-baud 9600 --target-baud 115200
 ```
 
 ##### 修改蓝牙名称（可选）
 
 ```bash
-python hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
+python legacy/v1/hardware/hc06_name_configurator.py --port COM6 --name "PillDispenserXX"
 ```
 
 ##### 电压转换电路

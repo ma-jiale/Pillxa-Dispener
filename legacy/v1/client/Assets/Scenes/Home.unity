@@ -921,13 +921,13 @@ MonoBehaviour:
   enablePulseOptimization: 1
   minSamplesForOptimization: 7
   defaultMotorSpeed: 0.2
-  defaultServoAngle: 0.8
+  defaultServoAngle: 0.7
   baseMotorSpeed: 0.15
   basePulseWidth: 5
   kMotorSpeed: 0.01
   minMotorSpeedLimit: 0.15
   maxMotorSpeedLimit: 0.36
-  baseServoAngle: 0.95
+  baseServoAngle: 0.85
   baseServoPulseWidth: 5
   kServoAngle: 0.02
   largePillPulseThreshold: 13

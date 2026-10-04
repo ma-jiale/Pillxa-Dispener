@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -52,6 +53,12 @@ namespace EZDose.MainFlow
         public event Action<float> ServoAngleChanged;       // 舵机角度改变事件
         public event Action<int> PlateSwitchRequired;
         public event Action<string> DeviceLost;
+        public event Action<bool> MotorStallChanged;
+        public bool IsMotorStalled { get; private set; }
+        public int CurrentStalledMotor { get; private set; }
+        private readonly Dictionary<int, int> pendingMotorStalls = new Dictionary<int, int>();
+        private int motorStallRevision;
+        private bool clearingMotorStall;
         
         // Event to trigger the manual error resolution dialog in UI
         public event Action<string> ErrorResolutionRequired;
@@ -105,8 +112,13 @@ namespace EZDose.MainFlow
         private string currentMedicineImageResourceId = string.Empty;
         private float currentMotorSpeed = 0f;
         private float currentServoAngle = 0f;
+        private float initialServoAngle;
+        private bool hasInitialServoSettings;
+        private float? finalManualServoAngle;
+        private int medicineServoSession;
+        public int ActiveServoTuningSession => isWaitingForDispensingComplete ? medicineServoSession : -1;
         private string currentMedicineDosageSpec = string.Empty;
-        private float lastSetServoAngle = 0.8f;     // 记录最近一次配置的舵机角度
+        private float lastSetServoAngle = 0.7f;     // 记录最近一次配置的舵机角度
         private int currentPlate = 1;
         private int currentMedicineTotal = 0;
         private readonly List<int> optoPulseWidths = new List<int>();
@@ -291,6 +303,7 @@ namespace EZDose.MainFlow
             {
                 dispenserController.OnDispensingComplete += OnMachineDispensingComplete;
                 dispenserController.OnCountError += OnMachineCountError;
+                dispenserController.OnMotorStalled += OnMachineMotorStalled;
                 // Progress bar now driven by OnOptoPulseReceived instead of OnPillCountUpdate
                 // to reduce bluetooth message count
                 dispenserController.OnOptoPulseReceived += OnMachineOptoPulseReceived;
@@ -300,6 +313,7 @@ namespace EZDose.MainFlow
             {
                 dispenserController.OnDispensingComplete -= OnMachineDispensingComplete;
                 dispenserController.OnCountError -= OnMachineCountError;
+                dispenserController.OnMotorStalled -= OnMachineMotorStalled;
                 dispenserController.OnOptoPulseReceived -= OnMachineOptoPulseReceived;
                 dispenserController.OnBTError -= OnDispenserDeviceLost;
             }
@@ -916,6 +930,7 @@ namespace EZDose.MainFlow
 
         private void AbortCurrentDispensing()
         {
+            SetMotorStalled(false);
             isDispensing = false;
             isWaitingForDispensingComplete = false;
             hasCountError = false;
@@ -970,6 +985,10 @@ namespace EZDose.MainFlow
                 return false;
             }
             
+            SetMotorStalled(false);
+            medicineServoSession++;
+            finalManualServoAngle = null;
+
             // Store next medicine info for UI preview
             if (nextMed != null)
             {
@@ -986,9 +1005,11 @@ namespace EZDose.MainFlow
             var calibrationMgr = GetCalibrationManager();
             var (speed, angle) = calibrationMgr != null
                 ? calibrationMgr.GetSettingsOrDefault(med.MotorSpeed, med.ServoAngle)
-                : (0.3f, 0.8f);
+                : (0.3f, 0.7f);
 
             EZLog.D(EZLog.Module.Main, $"Configuring dispenser for '{med.MedicineName}': speed={speed:.2f}, angle={angle:.2f}");
+            initialServoAngle = angle;
+            hasInitialServoSettings = med.MotorSpeed > 0f && med.ServoAngle > 0f;
             var configured = await ConfigureDispenser(speed, angle);
             if (isDeviceLostAbort)
             {
@@ -1114,7 +1135,10 @@ namespace EZDose.MainFlow
                     med.DispensingDays);
                 
                 // Save average opto pulse width converted to motor speed and servo angle to server
-                await SavePulseWidthSettingsAsync(med);
+                if (!hasCountError)
+                {
+                    await SavePulseWidthSettingsAsync(med);
+                }
             }
 
             return success;
@@ -1288,9 +1312,15 @@ namespace EZDose.MainFlow
             // Wait for either: dispensing complete OR skip requested
             var dispensingTask = dispenseTcs.Task;
             var skipTask = skipCurrentMedicineTcs.Task;
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(600));
-            
-            var completedTask = await Task.WhenAny(dispensingTask, skipTask, timeoutTask);
+            Task timeoutTask;
+            Task completedTask;
+            using (var timeoutCancellation = new CancellationTokenSource())
+            {
+                timeoutTask = WaitForDispensingTimeoutAsync(timeoutCancellation.Token);
+                completedTask = await Task.WhenAny(dispensingTask, skipTask, timeoutTask);
+                timeoutCancellation.Cancel();
+            }
+            SetMotorStalled(false);
             
             if (completedTask == skipTask)
             {
@@ -1341,6 +1371,86 @@ namespace EZDose.MainFlow
             return (await dispensingTask, false, false);
         }
         #endregion
+
+        private async Task WaitForDispensingTimeoutAsync(CancellationToken cancellationToken)
+        {
+            float remaining = 600f;
+            float previous = Time.realtimeSinceStartup;
+            while (remaining > 0f)
+            {
+                bool wasStalled = IsMotorStalled;
+                await Task.Delay(100, cancellationToken);
+                float now = Time.realtimeSinceStartup;
+                if (!wasStalled && !IsMotorStalled) remaining -= now - previous;
+                previous = now;
+            }
+        }
+
+        private void SetMotorStalled(bool stalled)
+        {
+            if (!stalled)
+            {
+                pendingMotorStalls.Clear();
+                CurrentStalledMotor = 0;
+            }
+            if (IsMotorStalled == stalled) return;
+            IsMotorStalled = stalled;
+            MotorStallChanged?.Invoke(stalled);
+        }
+
+        private void OnMachineMotorStalled(int code)
+        {
+            if (!isWaitingForDispensingComplete) return;
+            if (code != SerialProtocol.DeviceID.CLEAR_MOTOR_STALL &&
+                code != SerialProtocol.DeviceID.CLEAR_MOTOR_3_STALL)
+            {
+                EZLog.W(EZLog.Module.Dispenser, $"Unsupported stalled motor: {code}");
+                return;
+            }
+            pendingMotorStalls[code] = ++motorStallRevision;
+            EZLog.W(EZLog.Module.Dispenser, $"Motor stalled: {code}; waiting for manual clearance");
+            if (IsMotorStalled) return;
+            CurrentStalledMotor = code;
+            SetMotorStalled(true);
+        }
+
+        public async Task<bool> ClearMotorStallAsync()
+        {
+            if (!IsMotorStalled || !isWaitingForDispensingComplete || clearingMotorStall ||
+                dispenserController == null || !dispenserController.IsConnected) return false;
+
+            int session = medicineServoSession;
+            int motorId = CurrentStalledMotor;
+            int revision = pendingMotorStalls[motorId];
+            clearingMotorStall = true;
+            try
+            {
+                var completion = new TaskCompletionSource<bool>();
+                dispenserController.ClearMotorStall(motorId, success => completion.TrySetResult(success));
+                bool acknowledged = await completion.Task;
+                if (!acknowledged || session != medicineServoSession ||
+                    !pendingMotorStalls.TryGetValue(motorId, out int latestRevision) || revision != latestRevision ||
+                    !isWaitingForDispensingComplete || isDeviceLostAbort) return false;
+
+                // Only clear the acknowledged motor; another motor may still require user action.
+                pendingMotorStalls.Remove(motorId);
+                if (pendingMotorStalls.Count > 0)
+                {
+                    CurrentStalledMotor = pendingMotorStalls.Keys.First();
+                    MotorStallChanged?.Invoke(true);
+                }
+                else
+                {
+                    // ACK confirms receipt only. Continue waiting for the existing task's feedback.
+                    SetMotorStalled(false);
+                }
+                return true;
+            }
+            finally
+            {
+                clearingMotorStall = false;
+            }
+        }
 
         private async Task<bool> WaitWithTimeout(Task<bool> task, TimeSpan timeout)
         {
@@ -1544,6 +1654,34 @@ namespace EZDose.MainFlow
             var (newSpeed, newAngle) = calibrationMgr.CalculateSettingsFromPulseWidth(medianPulseWidth);
             EZLog.I(EZLog.Module.Main, $"Calculated settings from median pulse ({medianPulseWidth:F2}): motor={newSpeed:F2}, servo={newAngle:F2}");
 
+            float calculatedAngle = newAngle;
+            if (hasInitialServoSettings && !finalManualServoAngle.HasValue)
+            {
+                // Successful dispensing without manual intervention keeps the saved angle unchanged.
+                newAngle = initialServoAngle;
+                EZLog.I(EZLog.Module.Main, $"Keeping servo history without manual adjustment: servo={newAngle:F2}");
+            }
+            else
+            {
+                // Without history or manual input, the formula establishes the first calibration.
+                if (finalManualServoAngle.HasValue)
+                {
+                    newAngle = initialServoAngle * 0.7f + calculatedAngle * 0.3f;
+                    EZLog.I(EZLog.Module.Main, $"Servo history weighting: previous={initialServoAngle:F2}, calculated={calculatedAngle:F2}, blended={newAngle:F2}");
+
+                    // Only learn from the final successful manual opening, once per completed medicine.
+                    if (finalManualServoAngle.Value < initialServoAngle &&
+                        finalManualServoAngle.Value < calculatedAngle)
+                    {
+                        float historyBlendedAngle = newAngle;
+                        newAngle = historyBlendedAngle * 0.5f + finalManualServoAngle.Value * 0.5f;
+                        EZLog.I(EZLog.Module.Main, $"Manual servo weighting: blended={historyBlendedAngle:F2}, manual={finalManualServoAngle.Value:F2}, saved={newAngle:F2}");
+                    }
+                }
+
+                newAngle = Mathf.Clamp(newAngle, calibrationMgr.MinServoAngleLimit, calibrationMgr.MaxServoAngleLimit);
+            }
+
             // Update current medicine settings for UI display
             currentMotorSpeed = newSpeed;
             currentServoAngle = newAngle;
@@ -1631,11 +1769,16 @@ namespace EZDose.MainFlow
         }
 
         /// <summary>
-        /// 同步更新最后一次设置的舵机角度值（用于平滑过渡起始值）
+        /// Record a successful manual command; only active, matching medicine sessions can learn it.
         /// </summary>
-        public void UpdateLastSetServoAngle(float angle)
+        public void RecordManualServoAngle(float angle, int session)
         {
+            if (session >= 0 && session != medicineServoSession) return;
             lastSetServoAngle = angle;
+            if (session >= 0 && isWaitingForDispensingComplete)
+            {
+                finalManualServoAngle = angle;
+            }
         }
 
         private void MarkPatientCompleted(string patientId)

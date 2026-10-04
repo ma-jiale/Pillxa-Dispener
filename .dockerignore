@@ -1,8 +1,0 @@
-**
-!apps/
-!apps/server/
-!apps/server/pyproject.toml
-!apps/server/app/
-!apps/server/app/**
-!apps/server/Dockerfile
-**/__pycache__/

@@ -9,6 +9,10 @@
 [Mm]emoryCaptures/
 .utmp/
 
+# Unity recovery scenes are local editor state
+/legacy/v1/client/Assets/_Recovery/
+/legacy/v1/client/Assets/_Recovery.meta
+
 # Visual Studio 缓存
 .vs/
 *.csproj
@@ -225,7 +229,7 @@ cython_debug/
 .vscode/
 
 legacy/v1/client/Assets/OpenCVForUnity/
-# Mdis V2 local state
+# Local state and dependencies
 .dart_tool/
 .flutter-plugins-dependencies
 node_modules/
@@ -235,5 +239,5 @@ node_modules/
 .env.*
 !.env.example
 
-# Required Flutter Windows runner source
-!apps/client/windows/runner/runner.exe.manifest
+# Local source snapshots; never commit backups
+/.local-backups/

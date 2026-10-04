@@ -30,6 +30,8 @@ namespace EZDose.Hardware
         public static class DeviceID
         {
             public const byte TURNTABLE_MOTOR = 0x00;       // 转盘电机
+            public const byte CLEAR_MOTOR_3_STALL = 0x03; // 3 号电机解除堵转
+            public const byte CLEAR_MOTOR_STALL = 0x02;    // 解除电机堵转，后续 float 为占位值
             public const byte SERVO_MOTOR = 0x01;           // 舵机（药物入口控制）
             public const byte UPPER_OPTOCOUPLER = 0x00;     // 上光耦
             public const byte LOWER_OPTOCOUPLER = 0x01;     // 下光耦
@@ -160,6 +162,15 @@ namespace EZDose.Hardware
                 message = message.Trim();
                 // User wants to see the raw message regardless of EZLog configuration
                 UnityEngine.Debug.LogWarning($"[SERIAL RAW DATA] {message}");
+
+                string stallNumber = message.StartsWith("stalled:", StringComparison.OrdinalIgnoreCase)
+                    ? message.Substring("stalled:".Length).Trim()
+                    : message.StartsWith("stall", StringComparison.OrdinalIgnoreCase)
+                        ? message.Substring("stall".Length).Trim() : null;
+                if (int.TryParse(stallNumber, out int stallCode) && stallCode >= 0)
+                {
+                    return new FeedbackMessage { Type = FeedbackType.MotorStalled, StallCode = stallCode };
+                }
 
                 if (message == MACHINE_INIT)
                     return new FeedbackMessage { Type = FeedbackType.MachineInit };
@@ -295,7 +306,8 @@ namespace EZDose.Hardware
         RfidUid,
         RfidNoCard,
         OptoPulseWidth,
-        CleanedPills
+        CleanedPills,
+        MotorStalled
     }
 
     /// <summary>
@@ -305,6 +317,7 @@ namespace EZDose.Hardware
     {
         public FeedbackType Type { get; set; }
         public int PillCount { get; set; }
+        public int StallCode { get; set; }
         /// <summary>
         /// Hardware-reported sequence number for opto pulse messages.
         /// -1 indicates legacy format (no sequence number available).
