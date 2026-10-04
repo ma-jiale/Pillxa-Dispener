@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -52,6 +53,12 @@ namespace EZDose.MainFlow
         public event Action<float> ServoAngleChanged;       // 舵机角度改变事件
         public event Action<int> PlateSwitchRequired;
         public event Action<string> DeviceLost;
+        public event Action<bool> MotorStallChanged;
+        public bool IsMotorStalled { get; private set; }
+        public int CurrentStalledMotor { get; private set; }
+        private readonly Dictionary<int, int> pendingMotorStalls = new Dictionary<int, int>();
+        private int motorStallRevision;
+        private bool clearingMotorStall;
         
         // Event to trigger the manual error resolution dialog in UI
         public event Action<string> ErrorResolutionRequired;
@@ -105,6 +112,7 @@ namespace EZDose.MainFlow
         private string currentMedicineImageResourceId = string.Empty;
         private float currentMotorSpeed = 0f;
         private float currentServoAngle = 0f;
+        private int medicineServoSession;
         private string currentMedicineDosageSpec = string.Empty;
         private float lastSetServoAngle = 0.8f;     // 记录最近一次配置的舵机角度
         private int currentPlate = 1;
@@ -291,6 +299,7 @@ namespace EZDose.MainFlow
             {
                 dispenserController.OnDispensingComplete += OnMachineDispensingComplete;
                 dispenserController.OnCountError += OnMachineCountError;
+                dispenserController.OnMotorStalled += OnMachineMotorStalled;
                 // Progress bar now driven by OnOptoPulseReceived instead of OnPillCountUpdate
                 // to reduce bluetooth message count
                 dispenserController.OnOptoPulseReceived += OnMachineOptoPulseReceived;
@@ -300,6 +309,7 @@ namespace EZDose.MainFlow
             {
                 dispenserController.OnDispensingComplete -= OnMachineDispensingComplete;
                 dispenserController.OnCountError -= OnMachineCountError;
+                dispenserController.OnMotorStalled -= OnMachineMotorStalled;
                 dispenserController.OnOptoPulseReceived -= OnMachineOptoPulseReceived;
                 dispenserController.OnBTError -= OnDispenserDeviceLost;
             }
@@ -916,6 +926,7 @@ namespace EZDose.MainFlow
 
         private void AbortCurrentDispensing()
         {
+            SetMotorStalled(false);
             isDispensing = false;
             isWaitingForDispensingComplete = false;
             hasCountError = false;
@@ -970,6 +981,9 @@ namespace EZDose.MainFlow
                 return false;
             }
             
+            SetMotorStalled(false);
+            medicineServoSession++;
+
             // Store next medicine info for UI preview
             if (nextMed != null)
             {
@@ -1288,9 +1302,15 @@ namespace EZDose.MainFlow
             // Wait for either: dispensing complete OR skip requested
             var dispensingTask = dispenseTcs.Task;
             var skipTask = skipCurrentMedicineTcs.Task;
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(600));
-            
-            var completedTask = await Task.WhenAny(dispensingTask, skipTask, timeoutTask);
+            Task timeoutTask;
+            Task completedTask;
+            using (var timeoutCancellation = new CancellationTokenSource())
+            {
+                timeoutTask = WaitForDispensingTimeoutAsync(timeoutCancellation.Token);
+                completedTask = await Task.WhenAny(dispensingTask, skipTask, timeoutTask);
+                timeoutCancellation.Cancel();
+            }
+            SetMotorStalled(false);
             
             if (completedTask == skipTask)
             {
@@ -1341,6 +1361,86 @@ namespace EZDose.MainFlow
             return (await dispensingTask, false, false);
         }
         #endregion
+
+        private async Task WaitForDispensingTimeoutAsync(CancellationToken cancellationToken)
+        {
+            float remaining = 600f;
+            float previous = Time.realtimeSinceStartup;
+            while (remaining > 0f)
+            {
+                bool wasStalled = IsMotorStalled;
+                await Task.Delay(100, cancellationToken);
+                float now = Time.realtimeSinceStartup;
+                if (!wasStalled && !IsMotorStalled) remaining -= now - previous;
+                previous = now;
+            }
+        }
+
+        private void SetMotorStalled(bool stalled)
+        {
+            if (!stalled)
+            {
+                pendingMotorStalls.Clear();
+                CurrentStalledMotor = 0;
+            }
+            if (IsMotorStalled == stalled) return;
+            IsMotorStalled = stalled;
+            MotorStallChanged?.Invoke(stalled);
+        }
+
+        private void OnMachineMotorStalled(int code)
+        {
+            if (!isWaitingForDispensingComplete) return;
+            if (code != SerialProtocol.DeviceID.CLEAR_MOTOR_STALL &&
+                code != SerialProtocol.DeviceID.CLEAR_MOTOR_3_STALL)
+            {
+                EZLog.W(EZLog.Module.Dispenser, $"Unsupported stalled motor: {code}");
+                return;
+            }
+            pendingMotorStalls[code] = ++motorStallRevision;
+            EZLog.W(EZLog.Module.Dispenser, $"Motor stalled: {code}; waiting for manual clearance");
+            if (IsMotorStalled) return;
+            CurrentStalledMotor = code;
+            SetMotorStalled(true);
+        }
+
+        public async Task<bool> ClearMotorStallAsync()
+        {
+            if (!IsMotorStalled || !isWaitingForDispensingComplete || clearingMotorStall ||
+                dispenserController == null || !dispenserController.IsConnected) return false;
+
+            int session = medicineServoSession;
+            int motorId = CurrentStalledMotor;
+            int revision = pendingMotorStalls[motorId];
+            clearingMotorStall = true;
+            try
+            {
+                var completion = new TaskCompletionSource<bool>();
+                dispenserController.ClearMotorStall(motorId, success => completion.TrySetResult(success));
+                bool acknowledged = await completion.Task;
+                if (!acknowledged || session != medicineServoSession ||
+                    !pendingMotorStalls.TryGetValue(motorId, out int latestRevision) || revision != latestRevision ||
+                    !isWaitingForDispensingComplete || isDeviceLostAbort) return false;
+
+                // Only clear the acknowledged motor; another motor may still require user action.
+                pendingMotorStalls.Remove(motorId);
+                if (pendingMotorStalls.Count > 0)
+                {
+                    CurrentStalledMotor = pendingMotorStalls.Keys.First();
+                    MotorStallChanged?.Invoke(true);
+                }
+                else
+                {
+                    // ACK confirms receipt only. Continue waiting for the existing task's feedback.
+                    SetMotorStalled(false);
+                }
+                return true;
+            }
+            finally
+            {
+                clearingMotorStall = false;
+            }
+        }
 
         private async Task<bool> WaitWithTimeout(Task<bool> task, TimeSpan timeout)
         {

@@ -70,6 +70,7 @@ namespace EZDose.Hardware
         public event Action OnMachineInit; // unused
         public event Action OnDispensingComplete;
         public event Action OnCountError;
+        public event Action<int> OnMotorStalled;
         public event Action<string> OnBTError; 
         public event Action<string> OnError; 
         public event Action<int, int> OnOptoPulseReceived;  // (pulseWidth, sequenceNumber)
@@ -673,6 +674,10 @@ namespace EZDose.Hardware
                     OnDispensingComplete?.Invoke();
                     break;
 
+                case FeedbackType.MotorStalled:
+                    OnMotorStalled?.Invoke(feedback.StallCode);
+                    break;
+
                 case FeedbackType.StateCountError:
                     errorCode = 2;
                     EZLog.W(EZLog.Module.Dispenser, "Count error");
@@ -762,18 +767,19 @@ namespace EZDose.Hardware
         /// <summary>
         /// 发送数据包（带重试机制）
         /// </summary>
-        private IEnumerator SendPackageCoroutine(byte[] package, int retryCount, Action<bool> callback)
+        private IEnumerator SendPackageCoroutine(byte[] package, int retryCount, Action<bool> callback, bool disconnectOnFailure = true)
         {
+            var logModule = disconnectOnFailure ? EZLog.Module.Protocol : EZLog.Module.Dispenser;
             if (!isConnected)
             {
-                EZLog.E(EZLog.Module.Protocol, "Not connected, cannot send data");
+                EZLog.E(logModule, "Not connected, cannot send data");
                 callback?.Invoke(false);
                 yield break;
             }
 
             if (isSendingPackage)
             {
-                EZLog.W(EZLog.Module.Protocol, "Previous send not finished");
+                EZLog.W(logModule, "Previous send not finished");
                 callback?.Invoke(false);
                 yield break;
             }
@@ -782,26 +788,28 @@ namespace EZDose.Hardware
             ackReceived = false;
 
             bool success = false;
+            bool bytesWritten = false;
 
             for (int attempt = 0; attempt <= retryCount; attempt++)
             {
                 if (attempt > 0)
                 {
-                    EZLog.D(EZLog.Module.Protocol, $"Retrying send ({attempt}/{retryCount})");
+                    EZLog.D(logModule, $"Retrying send ({attempt}/{retryCount})");
                 }
 
                 // 记录发送的命令和数据
                 string cmdName = package.Length > 2 ? SerialProtocol.GetCommandName(package[2]) : "EMPTY";
                 string decodedInfo = DecodePackagePayload(package);
-                EZLog.I(EZLog.Module.Protocol, $">>> Sending to STM32: [{cmdName}]{decodedInfo} HEX: {BitConverter.ToString(package)}");
+                EZLog.I(logModule, $">>> Sending to STM32: [{cmdName}]{decodedInfo} HEX: {BitConverter.ToString(package)}");
 
                 // 发送数据
                 if (!SendBytes(package))
                 {
-                    EZLog.E(EZLog.Module.Protocol, "Send failed");
+                    EZLog.E(logModule, "Send failed");
                     continue;
                 }
 
+                bytesWritten = true;
                 // 等待ACK
                 float waitTime = 0f;
                 float currentAckTimeout = GetCurrentAckTimeout();
@@ -813,7 +821,7 @@ namespace EZDose.Hardware
 
                 if (ackReceived)
                 {
-                    EZLog.D(EZLog.Module.Protocol, "Send succeeded, ACK received");
+                    EZLog.D(logModule, "Send succeeded, ACK received");
                     success = true;
                     break;
                 }
@@ -821,10 +829,19 @@ namespace EZDose.Hardware
 
             if (!success)
             {
-                EZLog.E(EZLog.Module.Protocol, $"Send failed, no ACK after {retryCount} retries");
-                errorCode = 1;
-                // 全部重试失败，判定为设备断连
-                HandleConnectionLost("发送命令无响应");
+                if (disconnectOnFailure)
+                {
+                    EZLog.E(logModule, $"Send failed, no ACK after {retryCount} retries");
+                    errorCode = 1;
+                    HandleConnectionLost("发送命令无响应");
+                }
+                else
+                {
+                    // An unconfirmed clearance is not evidence that the serial connection was lost.
+                    EZLog.W(logModule, bytesWritten
+                        ? "解除堵转指令已写入串口，但未收到 ACK；保留连接和接收，不自动重发。"
+                        : "解除堵转指令写入失败；保留接收，不自动重发，请检查设备连接。");
+                }
             }
 
             isSendingPackage = false;
@@ -934,6 +951,8 @@ namespace EZDose.Hardware
                         byte deviceId = package[3];
                         string deviceName = deviceId == SerialProtocol.DeviceID.TURNTABLE_MOTOR ? "转盘电机" :
                                             deviceId == SerialProtocol.DeviceID.SERVO_MOTOR ? "舵机" :
+                                            deviceId == SerialProtocol.DeviceID.CLEAR_MOTOR_STALL ? "解除2号电机堵转" :
+                                            deviceId == SerialProtocol.DeviceID.CLEAR_MOTOR_3_STALL ? "解除3号电机堵转" :
                                             $"未知设备(0x{deviceId:X2})";
                         float value = BitConverter.ToSingle(package, 4);
                         return $" Device={deviceName} Value={value:F2}";
@@ -1195,8 +1214,25 @@ namespace EZDose.Hardware
         }
 
         /// <summary>
-        /// 设置转盘电机转速
+        /// 用户清理后解除堵转；仅发送一次，不自动重试。
         /// </summary>
+        public void ClearMotorStall(int motorId, Action<bool> callback = null)
+        {
+            if (motorId != SerialProtocol.DeviceID.CLEAR_MOTOR_STALL &&
+                motorId != SerialProtocol.DeviceID.CLEAR_MOTOR_3_STALL)
+            {
+                EZLog.W(EZLog.Module.Dispenser, $"Unsupported stalled motor: {motorId}");
+                callback?.Invoke(false);
+                return;
+            }
+            // Same device + float payload as other command 8 operations; float is ignored by firmware.
+            byte[] data = new byte[5];
+            data[0] = (byte)motorId;
+            byte[] package = SerialProtocol.BuildPackage(SerialProtocol.Commands.SET_MOTOR_SPEED, data);
+            StartCoroutine(SendPackageCoroutine(package, 0, callback, disconnectOnFailure: false));
+        }
+
+        /// <summary>设置转盘电机转速。</summary>
         public void SetTurntableSpeed(float speed, Action<bool> callback = null)
         {
             EZLog.D(EZLog.Module.Dispenser, $"Setting turntable speed: {speed}");

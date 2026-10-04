@@ -163,6 +163,13 @@ namespace EZDose.UI
         [Tooltip("Pill calibration dialog")]
         [SerializeField] private PillCalibrationDialog pillCalibrationDialog;
         
+        [Header("Motor Stall Dialog")]
+        [SerializeField] private GameObject stalledDialog;
+        [SerializeField] private Button clearMotorStallButton;
+        [SerializeField] private Text stalledMessageText;
+        [SerializeField] private Text stalledTitleText;
+        private bool isClearingMotorStall;
+
         [Header("Manual Servo Tuning")]
         [Tooltip("Slider for directly tuning the servo angle")]
         [SerializeField] private Slider servoAngleTuningSlider;
@@ -2171,7 +2178,12 @@ namespace EZDose.UI
                 main.ServoAngleChanged += OnServoAngleChangedBySystem;
                 main.PlateSwitchRequired += OnPlateSwitchRequired;
                 main.MedicineSkipped += OnMedicineSkipped;
+                main.MotorStallChanged += OnMotorStallChanged;
             }
+
+            if (clearMotorStallButton != null)
+                clearMotorStallButton.onClick.AddListener(OnClearMotorStallClicked);
+            OnMotorStallChanged(main != null && main.IsMotorStalled);
 
             if (captureBackgroundButton != null && pillCounterController != null)
             {
@@ -2279,6 +2291,47 @@ namespace EZDose.UI
 
             float servoAngle = servoAngleTuningSlider.value;
             FireAndForget(ApplyServoAngleTuningAsync(servoAngle));
+        }
+
+        private void OnMotorStallChanged(bool stalled)
+        {
+            if (stalledDialog == null) return;
+            stalledDialog.SetActive(stalled);
+            if (!stalled) return;
+            ResetServoKeyboardTuningState();
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            stalledDialog.transform.SetAsLastSibling();
+            int motorId = MainController.Instance.CurrentStalledMotor;
+            if (stalledTitleText != null) stalledTitleText.text = $"{motorId} 号电机堵转";
+            if (stalledMessageText != null)
+                stalledMessageText.text = $"请清理 {motorId} 号电机卡住的异物，清理完成后点击解除堵转。";
+            if (clearMotorStallButton != null)
+                clearMotorStallButton.interactable = !isClearingMotorStall;
+        }
+
+        private void OnClearMotorStallClicked()
+        {
+            if (!isClearingMotorStall) FireAndForget(ClearMotorStallFromDialogAsync());
+        }
+
+        private async Task ClearMotorStallFromDialogAsync()
+        {
+            var main = MainController.Instance;
+            if (main == null || !main.IsMotorStalled) return;
+            isClearingMotorStall = true;
+            if (clearMotorStallButton != null) clearMotorStallButton.interactable = false;
+            if (stalledMessageText != null) stalledMessageText.text = $"正在发送 {main.CurrentStalledMotor} 号电机解除堵转指令…";
+            try
+            {
+                bool acknowledged = await main.ClearMotorStallAsync();
+                if (this != null && !acknowledged && main.IsMotorStalled && stalledMessageText != null)
+                    stalledMessageText.text = $"未确认 {main.CurrentStalledMotor} 号电机解除指令或再次收到堵转，请检查设备状态后再操作。";
+            }
+            finally
+            {
+                isClearingMotorStall = false;
+                if (this != null && clearMotorStallButton != null) clearMotorStallButton.interactable = true;
+            }
         }
 
         private async Task ApplyServoAngleTuningAsync(float servoAngle)
@@ -2930,6 +2983,8 @@ namespace EZDose.UI
                 return true;
             }
 
+            if (IsActive(stalledDialog)) return true;
+
             return false;
         }
 
@@ -3252,6 +3307,7 @@ namespace EZDose.UI
                 main.ServoAngleChanged -= OnServoAngleChangedBySystem;
                 main.PlateSwitchRequired -= OnPlateSwitchRequired;
                 main.MedicineSkipped -= OnMedicineSkipped;
+                main.MotorStallChanged -= OnMotorStallChanged;
                 main.SkipConfirmRequired -= OnSkipConfirmRequired;
                 main.DeviceLost -= OnDeviceLost;
             }
