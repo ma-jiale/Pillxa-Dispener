@@ -1,59 +1,35 @@
-# Mdis
+# EZ-Dose / Mdis
 
-Medication Dispensing System, formerly EZ-Dose.
+面向养老院与康养机构的智能摆药管理系统。当前唯一维护版本为 **V1：Unity 客户端 + Flask/SQLite 服务端**，Windows COM 串口为主线，Android 蓝牙为兼容实现。
 
-面向养老院与康养机构的智能摆药管理系统：系统负责计算与引导，护理人员负责确认与投药，分药机负责物理执行。
+2026-10-04 决定终止 V2 重建。Flutter/FastAPI 工程、V2 设计文档及 PostgreSQL 容器配置已退出当前代码线；历史提交和基线标签保留，便于追溯。
 
-## Structure
+## 目录
 
 ```text
-apps/       V2 software (Flutter client & FastAPI server)
-hardware/   Current hardware tools, machine engineering, and analysis
-docs/       Current specifications, architecture, protocol, and migration guides
-legacy/     Historical product generations (V0 prototypes & validated V1)
+legacy/v1/client/  当前维护的 Unity 客户端
+legacy/v1/server/  当前维护的 Flask/SQLite 服务端
+legacy/v1/         V1 使用说明与产品资料
+legacy/v0/         早期原型，只读归档
+hardware/          当前硬件工具与工程分析
+docs/              协议、历史基线与维护说明
 ```
 
-## Current Generation
+V1 继续使用原有路径，避免影响 Unity 资源引用及现有部署工作。`legacy/v1/` 的目录名沿用历史布局，已不代表只读。
 
-**V2**:
-- **Client**: Flutter (Windows x64 / Android Pad)
-- **Server**: FastAPI + PostgreSQL
-- **Hardware Protocol**: Local Machine Control via Serial (115200 / 8N1) & Bluetooth
+## 开发与验证
 
-> 历史 V1（Unity 客户端 + Flask/SQLite 服务端）已完整保留并归档在 [`legacy/v1/`](legacy/v1/README.md) 作为行为参考基线，不可在 V2 开发中直接修改。
+- 客户端：用 Unity Hub 打开 `legacy/v1/client/`，编辑器版本以 `ProjectSettings/ProjectVersion.txt` 为准。
+- 服务端：在 `pill-dispenser` 虚拟环境中，进入 `legacy/v1/server/`，安装 `requirements-dev.txt` 并运行 `python -m pytest`。
+- 服务端样式：在 `legacy/v1/server/` 运行 `npm ci`，然后按 [维护说明](docs/maintenance.md) 使用仓库相对路径构建。
+- 根目录 CI 运行 V1 服务端测试、样式构建和硬件 Python 语法检查。Unity 构建与真实设备验收仍需单独进行。
 
-## Documentation
+启动服务器前核对其配置及数据目录。测试使用隔离的临时数据，不执行真实摆药操作。
 
-- [Product Specification & Roadmap](docs/product.md)
-- [Architecture & Multi-Tenancy](docs/architecture.md)
-- [Design Principles & System](docs/design.md)
-- [STM32 Machine Protocol](docs/protocol.md)
-- [Migration Guide & Baselines](docs/migration.md)
+## 文档
 
-## Development
-
-### Client
-
-```bash
-cd apps/client
-flutter pub get
-flutter run -d windows
-```
-
-### Server
-
-```bash
-cd apps/server
-python -m pip install -e ".[dev]"
-python -m pytest
-python -m uvicorn app.main:app --reload --port 8000
-```
-
-### Docker
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-存活检查端点：`http://127.0.0.1:8000/health/live`
+- [V1 使用说明](legacy/v1/README.md)
+- [服务端说明](legacy/v1/server/README.md)
+- [维护与代码管理](docs/maintenance.md)
+- [硬件协议](docs/protocol.md)
+- [历史基线](docs/migration.md)

@@ -15,11 +15,11 @@
 
 ---
 
-> **V1 Archive Notice**:
+> **V1 Maintenance Notice**:
 > - `client`: Unity (Windows x64 / Android compatibility)
 > - `server`: Flask + SQLite
 > 
-> This directory preserves the validated Mdis V1 historical baseline for behavioral reference. Business code is not modified.
+> As of 2026-10-04, V1 is the only maintained generation and the V2 rebuild is retired. Development continues in this directory. Frozen baselines remain available through Git tags and do not describe the current working tree. See the [repository README](../../README.md).
 
 ## 📖 Overview
 
