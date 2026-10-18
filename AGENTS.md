@@ -2,7 +2,7 @@
 
 ## 目标与依据
 
-完成工作人员可独立使用的处方管理与摆药系统。首版 Windows，设计考虑后续网页、Android 和 iOS。前端、中央后端、本机设备执行责任清楚，技术基线见 docs/08-system-architecture.md。
+完成工作人员可独立使用的处方管理与摆药系统。采用 Flutter 重新开发，首版 Windows，长期支持 Windows、Android 和 iOS，网页端在相应阶段确定。当前是文档基线，尚无 Flutter 可运行实现。前端、中央后端、本机设备执行责任清楚，技术基线见 docs/08-system-architecture.md。
 
 先读 docs/README.md，按任务读取 00–07 的相关业务内容，再读 08 的相关边界和 09 的实施路线。用户最新指示优先于文档。
 

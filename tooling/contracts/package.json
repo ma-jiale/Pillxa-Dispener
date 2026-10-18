@@ -1,9 +1,0 @@
-{
-  "name": "@pillxa/contract-tooling",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "openapi-typescript": "7.13.0",
-    "typescript": "^6.0.0"
-  }
-}
