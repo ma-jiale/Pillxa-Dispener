@@ -1,0 +1,25 @@
+{
+  "created": "2026-10-18",
+  "tool": "built-in image_gen",
+  "use_case": "product-mockup",
+  "background": "white",
+  "purpose": "Fictional medicine image assets for GUI demonstration",
+  "assets": [
+    {
+      "id": "a",
+      "file": "medicine-a.png",
+      "prompt": "Use case: product-mockup.\nAsset type: fictional medicine photograph for a Flutter dispensing-app demonstration, not a UI mockup.\nCreate a square high quality professional studio product photograph. One clean matte white medicine carton standing in a subtle three-quarter view, with one silver foil blister of several circular white tablets resting in front. Centered product group occupying approximately 70 percent of the frame, full objects visible, generous clean margin, quiet white seamless background with very soft realistic contact shadows. Natural realistic material colors, fine cardboard grain, silver aluminum foil, translucent plastic blister, matte white tablets. Restrained commercially polished catalog photography, soft diffused neutral daylight.\nPackaging typography: clean legible dark Chinese sans serif, sparse labeling, exactly the provided medicine name and strength. This is explicitly a fictional demonstration product. No real pharmaceutical company, no trademark, no dosing instructions or health claims. No user interface, no tablet device, no other props, no hands, no watermark, no busy composition.\nThe carton has a single restrained teal-green identification band. Exact two lines of front text: \"示例药 A\" and \"10 mg\". The teal band is a natural muted color, not grayscale.",
+      "path": "C:/Users/jiale/Workspace/Pillxai-Dispener/.tools/agent-ui/assets/medicine-a.png",
+      "source": "C:/Users/jiale/.codex/generated_images/01a14f2f-5463-7433-942d-fa4457e3d299/exec-081bd9b9-fad3-4974-8c87-6cb224e2827e.png",
+      "visually_reviewed": true
+    },
+    {
+      "id": "b",
+      "file": "medicine-b.png",
+      "prompt": "Use case: product-mockup.\nAsset type: fictional medicine photograph for a Flutter dispensing-app demonstration, not a UI mockup.\nCreate a square high quality professional studio product photograph. One clean matte white medicine carton standing in a subtle three-quarter view, with one silver foil blister of several circular white tablets resting in front. Centered product group occupying approximately 70 percent of the frame, full objects visible, generous clean margin, quiet white seamless background with very soft realistic contact shadows. Natural realistic material colors, fine cardboard grain, silver aluminum foil, translucent plastic blister, matte white tablets. Restrained commercially polished catalog photography, soft diffused neutral daylight.\nPackaging typography: clean legible dark Chinese sans serif, sparse labeling, exactly the provided medicine name and strength. This is explicitly a fictional demonstration product. No real pharmaceutical company, no trademark, no dosing instructions or health claims. No user interface, no tablet device, no other props, no hands, no watermark, no busy composition.\nThe carton has a single restrained soft blue identification band. Exact two lines of front text: \"示例药 B\" and \"5 mg\". The blue band is a natural muted color, not grayscale.",
+      "path": "C:/Users/jiale/Workspace/Pillxai-Dispener/.tools/agent-ui/assets/medicine-b.png",
+      "source": "C:/Users/jiale/.codex/generated_images/01a14f2f-5463-7433-942d-fa4457e3d299/exec-ae3c2a70-0ff8-4aa3-bd36-76fe478e256c.png",
+      "visually_reviewed": true
+    }
+  ]
+}
