@@ -241,3 +241,19 @@ node_modules/
 
 # Local source snapshots; never commit backups
 /.local-backups/
+
+# Pillxa Dispenser workspace
+node_modules/
+apps/desktop/src-tauri/resources/
+.tools/
+.var/
+.env
+.env.*
+!.env.example
+**/dist/
+**/target/
+**/.turbo/
+coverage/
+test-results/
+playwright-report/
+release/

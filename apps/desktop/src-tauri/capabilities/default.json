@@ -1,0 +1,6 @@
+{
+  "identifier": "main",
+  "description": "Pillxai desktop window",
+  "windows": ["main"],
+  "permissions": ["core:default", "updater:default"]
+}
