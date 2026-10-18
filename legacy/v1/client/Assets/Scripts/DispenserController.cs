@@ -62,6 +62,7 @@ namespace EZDose.Hardware
         // RFID state reported asynchronously by the STM32 while the tray is open.
         private string currentRfidUid;
         private bool isRfidCardPresent;
+        public RfidRemovalMonitor RfidRemoval { get; } = new RfidRemovalMonitor();
         
         // 接收缓冲区
         private StringBuilder receiveBuffer = new StringBuilder();
@@ -714,6 +715,7 @@ namespace EZDose.Hardware
             }
 
             uid = uid.Trim().ToUpperInvariant();
+            RfidRemoval.Report(true);
             if (isRfidCardPresent && string.Equals(currentRfidUid, uid, StringComparison.OrdinalIgnoreCase))
             {
                 OnRfidPresenceReported?.Invoke(true, uid);
@@ -740,6 +742,7 @@ namespace EZDose.Hardware
 
         private void HandleRfidNoCard()
         {
+            RfidRemoval.Report(false);
             if (!isRfidCardPresent)
             {
                 OnRfidPresenceReported?.Invoke(false, null);
@@ -756,6 +759,9 @@ namespace EZDose.Hardware
 
         private void ClearRfidStateWithoutEvent()
         {
+            // Called before OPEN_TRAY, after CLOSE_TRAY and on disconnect. A cached
+            // empty/default state from another opening must never authorize closing.
+            RfidRemoval.Reset();
             currentRfidUid = null;
             isRfidCardPresent = false;
         }

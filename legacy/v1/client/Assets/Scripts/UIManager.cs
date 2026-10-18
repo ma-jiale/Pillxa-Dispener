@@ -235,8 +235,8 @@ namespace EZDose.UI
         private TaskCompletionSource<bool> rfidRemovalTcs;
         private bool identificationInvalidatedDuringClose;
         private DispenserController completionDispenser;
-        private TaskCompletionSource<bool> completionRfidReportTcs;
-        private int completionRfidPresenceVersion;
+        private int completionRfidMonitoringSession;
+        private bool isShowingCompletion;
         private bool isReturningHomeAfterCompletion;
         [Header("Pill Box Removal Safety Settings")]
         [Tooltip("RFID 感应不到药盒后，确认轨道为空的稳定等待时间（毫秒）。默认 1500ms (1.5秒)")]
@@ -245,7 +245,7 @@ namespace EZDose.UI
         [Tooltip("摄像头连续读取不到二维码后，自动收回轨道的稳定等待时间（秒）。默认 1.5秒")]
         [SerializeField] private float barcodeRemovalStabilitySeconds = 1.5f;
 
-        private int CompletionRfidClearStabilityMilliseconds => completionRfidClearStabilityMilliseconds;
+        private int CompletionRfidClearStabilityMilliseconds => Math.Max(1500, completionRfidClearStabilityMilliseconds);
         private float BarcodeRemovalStabilitySeconds => barcodeRemovalStabilitySeconds;
         private Color homeScanDialogTitleOriginalColor = Color.black;
         private bool isTitleOriginalColorCaptured = false;
@@ -2685,52 +2685,14 @@ namespace EZDose.UI
         {
             EndCompletionRfidMonitoring();
             completionDispenser = dispenser;
-            completionRfidPresenceVersion = 0;
-
-            if (completionDispenser != null)
-            {
-                completionDispenser.OnRfidPresenceReported += OnCompletionRfidPresenceReported;
-            }
+            // The dispenser has been recording reports since OPEN_TRAY, including
+            // reports received before this dialog or its async waiter existed.
         }
 
         private void EndCompletionRfidMonitoring()
         {
-            if (completionDispenser != null)
-            {
-                completionDispenser.OnRfidPresenceReported -= OnCompletionRfidPresenceReported;
-            }
-
             completionDispenser = null;
-            completionRfidPresenceVersion = 0;
-            completionRfidReportTcs?.TrySetResult(false);
-            completionRfidReportTcs = null;
-        }
-
-        private void OnCompletionRfidPresenceReported(bool isPresent, string _)
-        {
-            if (isPresent)
-            {
-                completionRfidPresenceVersion++;
-            }
-            completionRfidReportTcs?.TrySetResult(true);
-        }
-
-        private async Task<bool> WaitForNextCompletionRfidReportAsync()
-        {
-            if (completionDispenser == null)
-            {
-                return false;
-            }
-
-            var waiter = new TaskCompletionSource<bool>();
-            completionRfidReportTcs = waiter;
-            var received = await waiter.Task;
-            if (ReferenceEquals(completionRfidReportTcs, waiter))
-            {
-                completionRfidReportTcs = null;
-            }
-
-            return received && completionDispenser != null;
+            completionRfidMonitoringSession++;
         }
 
         private async Task<bool> WaitForCompletionTrayClearAsync()
@@ -2738,47 +2700,44 @@ namespace EZDose.UI
             if (completionDispenser == null)
             {
                 SetCompletionDialogMessage("无法读取药盒在位状态，轨道不会收回，请检查设备连接");
+                if (!deviceLostDialogVisible)
+                {
+                    EnableCompletionRetryButton();
+                }
                 return false;
             }
 
-            SetCompletionDialogMessage(completionDispenser.IsRfidCardPresent
-                ? "检测到药盒仍在轨道上，请先取出药盒"
-                : "正在确认轨道是否为空，请稍候...");
-
-            while (completionDispenser != null)
+            int session = completionRfidMonitoringSession;
+            string previousMessage = null;
+            while (completionDispenser != null && session == completionRfidMonitoringSession)
             {
-                // Never trust a state cached before the user confirmed. A fresh
-                // hardware report is required so an early NO CARD cannot close the
-                // tray before a delayed UID report arrives.
-                if (!await WaitForNextCompletionRfidReportAsync())
+                if (!completionDispenser.IsConnected)
                 {
+                    SetCompletionDialogMessage("设备连接已断开，轨道保持打开，请恢复连接后重试");
+                    EnableCompletionRetryButton();
                     return false;
                 }
 
-                if (completionDispenser.IsRfidCardPresent)
-                {
-                    SetCompletionDialogMessage("检测到药盒仍在轨道上，请先取出药盒");
-                    continue;
-                }
-
-                // Require the empty state to remain stable before issuing CLOSE_TRAY.
-                // Any delayed UID during this window keeps the tray open.
-                int presenceVersionBeforeStability = completionRfidPresenceVersion;
-                await Task.Delay(CompletionRfidClearStabilityMilliseconds);
-                if (completionDispenser == null)
-                {
-                    return false;
-                }
-
-                if (!completionDispenser.IsRfidCardPresent &&
-                    completionRfidPresenceVersion == presenceVersionBeforeStability)
+                var removal = completionDispenser.RfidRemoval;
+                if (removal.IsClearFor(CompletionRfidClearStabilityMilliseconds))
                 {
                     return true;
                 }
 
-                SetCompletionDialogMessage(completionDispenser.IsRfidCardPresent
-                    ? "检测到药盒仍在轨道上，请先取出药盒"
-                    : "药盒状态发生变化，正在重新确认轨道是否为空...");
+                string message = !removal.HasReport
+                    ? "请取出药盒，正在等待 RFID 在位反馈..."
+                    : removal.IsPresent
+                        ? "检测到药盒仍在轨道上，请先取出药盒"
+                        : "已收到无卡反馈，正在确认轨道是否稳定为空...";
+                if (message != previousMessage)
+                {
+                    SetCompletionDialogMessage(message);
+                    previousMessage = message;
+                }
+
+                // A monotonic timer belongs to the hardware observation, not to a
+                // pending callback. UID cancels it; the next NO CARD starts afresh.
+                await Task.Delay(50);
             }
 
             return false;
@@ -2800,7 +2759,7 @@ namespace EZDose.UI
             return scanner;
         }
 
-        private void EnableCompletionRetryButton()
+        private void EnableCompletionRetryButton(bool reopenTray = false)
         {
             if (completeDialogConfirmButton == null)
             {
@@ -2810,43 +2769,72 @@ namespace EZDose.UI
             completeDialogConfirmButton.gameObject.SetActive(true);
             completeDialogConfirmButton.interactable = true;
             completeDialogConfirmButton.onClick.RemoveAllListeners();
-            completeDialogConfirmButton.onClick.AddListener(() => FireAndForget(ReturnHomeAsync()));
+            completeDialogConfirmButton.onClick.AddListener(() =>
+                FireAndForget(reopenTray ? ShowCompletionAsync() : ReturnHomeAsync()));
         }
 
         private async Task ShowCompletionAsync()
+        {
+            // A duplicate completion notification must not replace the monitor that
+            // ReturnHomeAsync is already awaiting, or both flows could stop waiting.
+            if (isShowingCompletion || isReturningHomeAfterCompletion || deviceLostDialogVisible)
+            {
+                return;
+            }
+
+            isShowingCompletion = true;
+            try
+            {
+                await ShowCompletionCoreAsync();
+            }
+            finally
+            {
+                isShowingCompletion = false;
+            }
+        }
+
+        private async Task ShowCompletionCoreAsync()
         {
             var main = MainController.Instance;
             bool usesRfid = main != null && main.CurrentPillBoxUsesRfid;
             var dispenser = FindObjectOfType<DispenserController>();
             EZLog.I(EZLog.Module.UI,
                 $"Showing completion flow for {(usesRfid ? "RFID" : "Barcode")} pill box");
+            int session;
             if (usesRfid)
             {
                 BeginCompletionRfidMonitoring(dispenser);
+                session = completionRfidMonitoringSession;
             }
             else
             {
                 EndCompletionRfidMonitoring();
+                session = completionRfidMonitoringSession;
                 pillCounterController?.StopCamera();
                 // Give Unity/Android a short window to release the native camera
                 // before the barcode scanner opens the same physical device.
                 await Task.Delay(250);
+                if (session != completionRfidMonitoringSession || deviceLostDialogVisible) return;
                 EnsureBarcodeRemovalScanner();
             }
 
             if (main != null)
             {
                 // StartDispensingAsync normally opens the tray before publishing the
-                // completion event. The barcode branch can immediately monitor that
-                // state. Keep the existing RFID reopen/report cycle unchanged.
+                // completion event. Reopening here would erase early RFID removal
+                // reports from that opening, so both sources reuse the open tray.
                 bool trayAlreadyOpen = dispenser != null && dispenser.IsTrayOpened;
-                if (usesRfid || !trayAlreadyOpen)
+                if (!trayAlreadyOpen)
                 {
                     var opened = await main.OpenTrayAsync();
+                    if (session != completionRfidMonitoringSession || deviceLostDialogVisible) return;
                     if (!opened)
                     {
                         EZLog.E(EZLog.Module.UI, "Unable to open tray for pill-box removal");
                         EndCompletionRfidMonitoring();
+                        SetCompletionDialogMessage("轨道打开失败，请检查设备连接后重试");
+                        if (completeDialog != null) completeDialog.SetActive(true);
+                        EnableCompletionRetryButton(reopenTray: true);
                         return;
                     }
                 }
@@ -2857,7 +2845,7 @@ namespace EZDose.UI
             }
 
             SetCompletionDialogMessage(usesRfid
-                ? "请取出药盒后按下确认键"
+                ? $"请取出 RFID 药盒，检测到无卡并稳定 {CompletionRfidClearStabilityMilliseconds / 1000f:F1} 秒后轨道将自动收回"
                 : "请取出二维码/条形码药盒，摄像头确认药盒离开后轨道将自动收回");
             if (completeDialog != null)
             {
@@ -2867,21 +2855,12 @@ namespace EZDose.UI
             if (completeDialogConfirmButton != null)
             {
                 completeDialogConfirmButton.onClick.RemoveAllListeners();
-                completeDialogConfirmButton.gameObject.SetActive(usesRfid);
-                completeDialogConfirmButton.interactable = usesRfid;
-                if (usesRfid)
-                {
-                    completeDialogConfirmButton.onClick.AddListener(() => FireAndForget(ReturnHomeAsync()));
-                }
+                completeDialogConfirmButton.gameObject.SetActive(false);
+                completeDialogConfirmButton.interactable = false;
             }
 
-            // Match the proven pre-RFID camera flow: monitoring starts as soon as
-            // the tray is open and closes it automatically after the code has been
-            // absent continuously for three seconds. No extra confirmation is needed.
-            if (!usesRfid)
-            {
-                await ReturnHomeAsync();
-            }
+            // Both identification sources start removal detection automatically.
+            await ReturnHomeAsync();
         }
 
         private async Task ReturnHomeAsync()
@@ -2901,8 +2880,14 @@ namespace EZDose.UI
             {
                 var main = MainController.Instance;
                 bool usesRfid = main != null && main.CurrentPillBoxUsesRfid;
+                int session = completionRfidMonitoringSession;
                 if (usesRfid)
                 {
+                    if (completionDispenser == null && !deviceLostDialogVisible)
+                    {
+                        BeginCompletionRfidMonitoring(FindObjectOfType<DispenserController>());
+                    }
+                    session = completionRfidMonitoringSession;
                     EZLog.I(EZLog.Module.UI, "Completion removal check using RFID reports");
                     if (!await WaitForCompletionTrayClearAsync())
                     {
@@ -2927,11 +2912,13 @@ namespace EZDose.UI
                     }
                 }
 
+                if (session != completionRfidMonitoringSession || deviceLostDialogVisible) return;
                 SetCompletionDialogMessage("正在收回轨道...");
                 if (main != null)
                 {
                     EZLog.I(EZLog.Module.UI, "Pill box removed; sending CLOSE_TRAY");
                     var closed = await main.CloseTrayAsync();
+                    if (session != completionRfidMonitoringSession || deviceLostDialogVisible) return;
                     if (!closed)
                     {
                         EZLog.E(EZLog.Module.UI, "CLOSE_TRAY failed after pill-box removal");
