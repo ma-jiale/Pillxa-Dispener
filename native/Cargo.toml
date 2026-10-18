@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/machine-runtime"]
+resolver = "2"
