@@ -1,0 +1,120 @@
+# 学校服务器不能 SSH 直连：让专用 Runner 主动从 GitHub 下载 Docker 镜像。
+# 镜像通过 Actions 制品交付，不需要学校服务器连接 Docker Hub 或登录镜像仓库。
+# 首次部署配置步骤：deploy/v1-server/README.md。
+name: V1 Server CD
+
+on:
+  # 只有 main 的 V1 CI 完成后才评估部署。此文件须先存在于默认分支。
+  workflow_run:
+    workflows: ['V1 CI']
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+# 更新过程中不取消正在部署的容器；连续提交时等待项可能被更新任务替代。
+concurrency:
+  group: v1-server-production
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: 检查并构建 V1 Docker 镜像
+    # 不部署失败、取消、PR 或外部仓库触发的检查结果。
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_branch == 'main' &&
+          github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      V1_TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      # x86_64 服务器选 linux/amd64；aarch64 服务器设仓库变量为 linux/arm64。
+      V1_DOCKER_PLATFORM: ${{ vars.V1_DOCKER_PLATFORM || 'linux/amd64' }}
+    steps:
+      - name: 下载通过 CI 的准确提交
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: 确认该提交仍是 main 最新版本
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$current_main" != "$V1_TARGET_SHA" ]]; then
+            echo '::error::main 已有更新，停止构建过时版本。'
+            exit 1
+          fi
+
+      - name: 准备部署工具测试环境
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: 检查部署工具和数据保留行为
+        # 使用虚构资料及模拟 Docker 命令，不连接生产服务器。
+        run: python -m unittest discover -s deploy/v1-server/tests -v
+
+      - name: 准备跨架构构建能力
+        # 只配置 GitHub 临时机器，不修改学校服务器或开发电脑。
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      - name: 准备 Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: 构建镜像，导出并生成版本和完整性清单
+        # Dockerfile 内构建 CSS；最终镜像只有 Python 运行依赖和 server 文件。
+        # 数据库、上传图片和真实密钥不进入构建上下文。
+        shell: bash
+        run: |
+          python deploy/v1-server/build_image.py \
+            --revision "$V1_TARGET_SHA" \
+            --platform "$V1_DOCKER_PLATFORM" \
+            --output "$RUNNER_TEMP/v1-server-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: 保存 Docker 镜像和部署文件
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: v1-server-${{ github.event.workflow_run.head_sha }}
+          path: ${{ runner.temp }}/v1-server-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: 在学校服务器更新 Docker 容器
+    needs: package
+    # 默认只构建。首次准备完成后，把仓库变量 V1_CD_ENABLED 设为 true。
+    if: ${{ vars.V1_CD_ENABLED == 'true' }}
+    # Runner 负责 Pillxa 后端部署，不绑定版本；本工作流只部署 V1。
+    runs-on: [self-hosted, linux, pillxa-server]
+    timeout-minutes: 30
+    environment: v1-production
+    env:
+      V1_TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      # 仅运行无第三方依赖的部署工具；应用 Python 3.12 由 Docker 镜像提供。
+      V1_SERVER_PYTHON: ${{ vars.V1_SERVER_PYTHON || 'python3' }}
+    steps:
+      - name: 下载本次构建的准确镜像
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: v1-server-${{ github.event.workflow_run.head_sha }}
+          path: ${{ runner.temp }}/v1-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: 校验、备份、更新，失败时恢复旧容器
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V1_ARTIFACT_DIRECTORY: ${{ runner.temp }}/v1-deploy-${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          "$V1_SERVER_PYTHON" "$V1_ARTIFACT_DIRECTORY/deploy.py" \
+            --artifact "$V1_ARTIFACT_DIRECTORY" \
+            --revision "$V1_TARGET_SHA" \
+            --repository "$GITHUB_REPOSITORY"

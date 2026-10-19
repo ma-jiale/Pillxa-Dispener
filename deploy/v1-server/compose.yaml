@@ -1,0 +1,45 @@
+# 由 deploy.py 校验镜像 ID，再填写固定镜像标签、宿主机账号和绝对数据目录。
+# 镜像由 GitHub 制品下载后 docker load；学校服务器不需要登录镜像仓库。
+services:
+  server:
+    image: ${V1_IMAGE:?必须指定已校验的镜像版本}
+    pull_policy: never
+    # 普通 Docker 使用部署账号 UID/GID；Rootless Docker 使用映射到该账号的容器 UID 0。
+    user: "${V1_UID:?必须指定运行UID}:${V1_GID:?必须指定运行GID}"
+    init: true
+    restart: unless-stopped
+    environment:
+      V1_SECRET_KEY: ${V1_SECRET_KEY:?必须在服务器设置会话密钥}
+      # 容器内部监听所有接口；宿主机是否对外开放由下面 ports 的 host_ip 决定。
+      V1_HOST: '0.0.0.0'
+      V1_PORT: '5068'
+      V1_THREADS: ${V1_THREADS:-4}
+    ports:
+      - target: 5068
+        published: "${V1_PORT:-5068}"
+        host_ip: ${V1_BIND_ADDRESS:-127.0.0.1}
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: ${V1_SHARED_DIRECTORY:?必须指定持久数据目录}/data
+        target: /app/data
+        bind:
+          # 路径写错时直接失败，避免 Docker 自动建立空目录后误以为旧数据还在。
+          create_host_path: false
+      - type: bind
+        source: ${V1_SHARED_DIRECTORY:?必须指定持久数据目录}/images
+        target: /app/static/images
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'

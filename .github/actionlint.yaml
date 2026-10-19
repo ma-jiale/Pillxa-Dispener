@@ -1,0 +1,4 @@
+# Pillxa 后端部署 Runner 的标签，可供不同版本的部署工作流选择。
+self-hosted-runner:
+  labels:
+    - pillxa-server

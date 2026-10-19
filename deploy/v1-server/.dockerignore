@@ -1,0 +1,10 @@
+# 构建上下文已经按白名单生成，再防止本地凭据和数据被意外复制。
+**/.env*
+**/__pycache__
+**/node_modules
+data
+static/images
+*.db
+*.sqlite*
+*.pem
+*.key
