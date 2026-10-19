@@ -1,0 +1,196 @@
+# V1 持续集成（CI）：代码进入 main 后，自动检查已有测试与构建。
+# 这里只检查 legacy/v1 的已知工程入口，不部署服务、不发布版本、不连接真实机器。
+# Flutter 新客户端的检查应另外建立，不能用本工作流的绿勾代替。
+# 阅读与排错说明：.github/README.md。
+name: V1 CI
+
+# on 表示“什么时候运行”。这里只监听 main 收到新提交。
+on:
+  # PR 合并到 main 后会产生一次 push，因此在合并后运行检查。
+  # 直接推送到 main 也会运行；其他分支推送、PR 创建/更新及标签推送不运行。
+  push:
+    branches: [main]
+
+# 检查代码只需要读权限；不授予推送代码、发布版本或部署的写权限。
+permissions:
+  contents: read
+
+# main 连续收到新提交时，取消已经过时的检查，只保留最新一次结果。
+concurrency:
+  group: v1-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# env 是本工作流共用的环境变量。关闭 pip 的升级提示，让日志更容易阅读。
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+# jobs 是彼此独立的检查任务。server、styles、hardware 可以同时运行；
+# gate 会等它们全部结束，再给出一个方便查看的总结果。
+jobs:
+  server:
+    name: 后端测试（${{ matrix.os }}）
+    # matrix 把同一套步骤分别放到 Linux 和 Windows 上执行，发现平台差异。
+    # 一个平台失败后，另一个仍继续，便于一次看到两个环境的结果。
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    # 安装或测试卡住超过 15 分钟时，任务失败，不会无限占用运行资源。
+    timeout-minutes: 15
+    defaults:
+      run:
+        # GitHub 托管的 Linux、Windows 机器都提供 Bash，统一命令写法。
+        shell: bash
+        working-directory: legacy/v1/server
+    steps:
+      - name: 下载本次需要检查的代码
+        # uses 调用已有工具；@ 后的完整提交号固定工具版本，避免上游标签变化。
+        # 行末版本号方便阅读。升级时应同时更新提交号与版本注释。
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # 后续步骤不需要访问 GitHub，不把认证凭据留给项目命令。
+          persist-credentials: false
+
+      - name: 准备 Python 3.12 和依赖下载缓存
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          # 沿用 V1 原有 Python 版本，不借修改 CI 升级项目运行环境。
+          python-version: '3.12'
+          # 缓存只加快下载；每次仍会重新安装依赖，不复用已安装的环境。
+          cache: pip
+          # with 中的文件路径从仓库根目录开始，不受 working-directory 影响。
+          cache-dependency-path: |
+            legacy/v1/server/requirements.txt
+            legacy/v1/server/requirements-dev.txt
+
+      - name: 创建独立测试环境并安装依赖
+        # venv 把依赖装到本任务自己的目录，避免混入运行机器上预装的包。
+        # Linux 的 Python 在 bin 中，Windows 的 Python 在 Scripts 中。
+        run: |
+          python -m venv .venv-ci
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            test_python="$PWD/.venv-ci/Scripts/python.exe"
+          else
+            test_python="$PWD/.venv-ci/bin/python"
+          fi
+          # GITHUB_ENV 是 GitHub 提供的文件；写入后，后续步骤就能使用该变量。
+          echo "V1_TEST_PYTHON=$test_python" >> "$GITHUB_ENV"
+          "$test_python" -m pip install -r requirements-dev.txt
+
+      - name: 检查已安装依赖是否缺失或互相冲突
+        # pip check 验证包之间声明的依赖关系，不是安全漏洞扫描。
+        run: '"$V1_TEST_PYTHON" -m pip check'
+
+      - name: 运行已有后端测试并生成结果报告
+        # -ra 在日志末尾汇总异常结果；--junitxml 另外生成可下载的 XML 报告。
+        # 不忽略失败：测试报错或一个测试都没找到，都会让本步骤失败。
+        run: |
+          mkdir -p "$RUNNER_TEMP/v1-test-results"
+          "$V1_TEST_PYTHON" -m pytest -ra --junitxml="$RUNNER_TEMP/v1-test-results/pytest.xml"
+
+      - name: 保存测试报告，便于失败后排查
+        # 前面测试失败也尝试保存报告；手动取消的任务不再上传。
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # 两个平台分别命名，防止上传时互相覆盖。
+          name: v1-pytest-${{ matrix.os }}
+          path: ${{ runner.temp }}/v1-test-results/pytest.xml
+          retention-days: 14
+          # 若安装依赖就已失败，此时没有测试报告，提示后查看前面的失败日志。
+          if-no-files-found: warn
+
+  styles:
+    name: 网页样式构建
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+        working-directory: legacy/v1/server
+    steps:
+      - name: 下载本次需要检查的代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 准备 Node.js 22 和依赖下载缓存
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: legacy/v1/server/package-lock.json
+
+      - name: 严格按锁文件安装网页构建依赖
+        # npm ci 使用 package-lock.json 中的版本；它与 package.json 不一致就失败。
+        # 不用 npm install，避免检查时悄悄修改依赖版本和锁文件。
+        run: npm ci
+
+      - name: 构建网页样式
+        # 把样式扫描范围写成相对路径，避免依赖某台开发电脑上的绝对路径。
+        # 整段 --content 参数加引号，让构建工具自己处理 ** 通配符。
+        # 成功只说明样式能生成；页面是否美观、按钮是否可用还需界面验证。
+        run: npm run build:css -- --content './templates/**/*.html,./static/js/**/*.js,./node_modules/flowbite/**/*.js'
+
+  hardware:
+    name: 硬件脚本语法检查
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: 下载本次需要检查的代码
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 准备 Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: 确认检查目标存在，并检查 Python 语法
+        shell: bash
+        # compileall 只编译，不导入或执行脚本，所以不会尝试打开串口或控制机器。
+        # 先检查目录和 Python 文件，避免路径写错后“什么都没检查却显示通过”。
+        # 此处通过不代表协议、设备反馈、暂停恢复或真实机器已经验证。
+        run: |
+          test -d legacy/v1/hardware
+          test -n "$(find legacy/v1/hardware -type f -name '*.py' -print -quit)"
+          python -m compileall -q legacy/v1/hardware
+
+  gate:
+    # 保留 gate 作为统一汇总名称。此流程在合并后运行，不作为 PR 合并前的门槛。
+    # 配置文件不会自动修改 GitHub 仓库的分支保护设置。
+    name: gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # always() 确保上游失败、取消或跳过时，也会进入汇总判断，避免误报成功。
+    if: ${{ always() }}
+    needs: [server, styles, hardware]
+    steps:
+      - name: 汇总检查结果，只有全部成功才通过
+        # needs 中保存上游任务的结果。server 包含的平台必须全部成功才算 success。
+        env:
+          SERVER_RESULT: ${{ needs.server.result }}
+          STYLES_RESULT: ${{ needs.styles.result }}
+          HARDWARE_RESULT: ${{ needs.hardware.result }}
+        shell: bash
+        run: |
+          # GITHUB_STEP_SUMMARY 会把表格显示在本次 Actions 运行的 Summary 页面。
+          {
+            echo '## V1 CI 检查结果'
+            echo ''
+            echo '| 检查 | 结果 |'
+            echo '| --- | --- |'
+            echo "| 后端测试（Linux + Windows） | $SERVER_RESULT |"
+            echo "| 网页样式构建 | $STYLES_RESULT |"
+            echo "| 硬件脚本语法 | $HARDWARE_RESULT |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # exit 1 表示失败；failure、cancelled、skipped 都不能冒充 success。
+          for result in "$SERVER_RESULT" "$STYLES_RESULT" "$HARDWARE_RESULT"; do
+            if [[ "$result" != 'success' ]]; then
+              echo '::error::V1 CI 未全部通过，请查看上方表格与对应任务日志。'
+              exit 1
+            fi
+          done
