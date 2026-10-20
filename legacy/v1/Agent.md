@@ -75,3 +75,10 @@ EZ-Dose 是智能分药系统。本仓库当前主线是 Unity Android 平板端
 ### 分药界面 UI 注意点
 
 - **下一药物文字提醒**：在 `Dispense` 场景的 `TopBar` 下配置了 `NextMedicineText`（Text 组件），由 `UIManager.cs` 的 `UpdateNextMedicinePreview(DispensingProgressInfo info)` 更新，显示下一药物名称与数量（如“下一药物：XXX，共 X 粒”或“下一药物：无”）。
+
+### V1 摆药日期维护（2026-10-20）
+
+- 本次覆盖从今天、处方开始日、已有截止日的次日中最晚的一天开始；过去漏摆的日期不补算，天数仍受处方结束日和 7 列上限限制。
+- `DispensingMedicine.DispensingStartDate` 在生成计划时固定；正常完成、人工处理后完成、跳过但标记已摆的三条回写路径都必须传入它，不能在完成时重新用当天或旧截止日推算。
+- 截止日由 `PrescriptionManager` 回写缓存并上传，服务端只保存上传值。日期修复须更新 V1 Unity 客户端；服务器 CD 不会更新已安装客户端。
+- `client/tools/test-prescription-dates.ps1` 直接编译实际处方管理代码，使用隔离的 Unity 接口替代物验证日期、数量和上传入参，不接触真实数据或硬件；Unity/Android 打包与实机执行仍需单独验证。

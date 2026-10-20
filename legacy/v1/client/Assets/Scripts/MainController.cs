@@ -1090,7 +1090,8 @@ namespace EZDose.MainFlow
                     prescriptionManager.ApplyDispensingResult(
                         med.PrescriptionId,
                         med.MedicineName,
-                        med.DispensingDays);
+                        med.DispensingDays,
+                        med.DispensingStartDate);
                 }
                 return true;  // Return true to continue the loop
             }
@@ -1123,7 +1124,8 @@ namespace EZDose.MainFlow
                 prescriptionManager.ApplyDispensingResult(
                     med.PrescriptionId,
                     med.MedicineName,
-                    med.DispensingDays);
+                    med.DispensingDays,
+                    med.DispensingStartDate);
                 return true; 
             }
             
@@ -1132,7 +1134,8 @@ namespace EZDose.MainFlow
                 prescriptionManager.ApplyDispensingResult(
                     med.PrescriptionId,
                     med.MedicineName,
-                    med.DispensingDays);
+                    med.DispensingDays,
+                    med.DispensingStartDate);
                 
                 // Save average opto pulse width converted to motor speed and servo angle to server
                 if (!hasCountError)

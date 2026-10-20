@@ -134,6 +134,7 @@ namespace EZDose.Prescriptions
         public float MotorSpeed;                    // 转盘速度 (0 = uncalibrated)
         public float ServoAngle;                    // 舵机角度 (0 = uncalibrated)
         public int DispensingDays;
+        public string DispensingStartDate;          // Frozen when this medicine's plan is created
         public int[,] PillMatrix;
         
         // Patient info for calibration dialog display
@@ -414,10 +415,12 @@ namespace EZDose.Prescriptions
                 Patient = prescription.Patient
             };
 
+            var today = DateTime.Today;
             foreach (var medicine in prescription.Medicines)
             {
                 // Calculate how many days we still need to dispense, considering threshold
-                var dispensingDays = CalculateDispensingDays(medicine, maxDays, expiryThreshold);
+                var dispensingDays = CalculateDispensingDays(
+                    medicine, maxDays, expiryThreshold, today, out var dispensingStartDate);
                 EZLog.D(EZLog.Module.Prescription, $"Medicine '{medicine.MedicineName}': dispensingDays={dispensingDays}, lastExpiry={medicine.LastDispensedExpiryDate}, threshold={expiryThreshold}");
 
                 if (dispensingDays <= 0)
@@ -436,6 +439,7 @@ namespace EZDose.Prescriptions
                     MotorSpeed = medicine.MotorSpeed,
                     ServoAngle = medicine.ServoAngle,
                     DispensingDays = dispensingDays,
+                    DispensingStartDate = dispensingStartDate.ToString("yyyy-MM-dd", culture),
                     PillMatrix = pillMatrix,
                     PatientName = prescription.Patient?.PatientName ?? "",
                     BedNumber = prescription.Patient?.BedNumber ?? "",
@@ -467,7 +471,7 @@ namespace EZDose.Prescriptions
             return true;
         }
 
-        public bool ApplyDispensingResult(int prescriptionId, string medicineName, int actualDispensedDays)
+        public bool ApplyDispensingResult(int prescriptionId, string medicineName, int actualDispensedDays, string dispensingStartDate)
         {
             // Advance the expiry date only by the number of days represented by the
             // matrix that actually completed successfully.
@@ -496,23 +500,15 @@ namespace EZDose.Prescriptions
                 return false;
             }
 
-            DateTime last;
-            if (DateTime.TryParseExact(medicine.LastDispensedExpiryDate, "yyyy-MM-dd", culture, DateTimeStyles.None, out var existingLast))
+            // Use the dates frozen in the plan, even if execution finishes after midnight.
+            // Adding days to the old expiry would incorrectly fill a missed period.
+            if (!DateTime.TryParseExact(dispensingStartDate, "yyyy-MM-dd", culture,
+                DateTimeStyles.None, out var firstDate))
             {
-                last = existingLast;
-            }
-            else if (DateTime.TryParseExact(medicine.StartDate, "yyyy-MM-dd", culture, DateTimeStyles.None, out var start))
-            {
-                // First time dispensing: treat "last expiry" as the day before start date
-                last = start.AddDays(-1);
-            }
-            else
-            {
-                // Cannot determine a base date
                 return false;
             }
 
-            var newExpiry = last.AddDays(actualDispensedDays).ToString("yyyy-MM-dd");
+            var newExpiry = firstDate.AddDays(actualDispensedDays - 1).ToString("yyyy-MM-dd", culture);
             medicine.LastDispensedExpiryDate = newExpiry;
 
             // Prefer the prescription ID so medicines with the same name cannot update
@@ -606,64 +602,35 @@ namespace EZDose.Prescriptions
         /// Returns 0 if medicine has enough pills remaining (above threshold) or prescription is over.
         /// Uses the same logic as MainController.CountMedicinesNeedingDispensing.
         /// </summary>
-        private int CalculateDispensingDays(MedicineEntry medicine, int maxDays, int expiryThreshold)
+        private int CalculateDispensingDays(MedicineEntry medicine, int maxDays, int expiryThreshold,
+            DateTime today, out DateTime dispensingStartDate)
         {
-            var today = DateTime.Today;
+            dispensingStartDate = today.Date;
             var effectiveMaxDays = Math.Min(
                 Math.Max(0, maxDays),
                 AppConfig.MAX_SUPPORTED_DISPENSING_DAYS);
 
-            // Parse start date - required for all calculations
             if (!DateTime.TryParseExact(medicine.StartDate, "yyyy-MM-dd", culture, DateTimeStyles.None, out var start))
             {
-                // Cannot determine start date - default to dispensing
-                return Math.Min(effectiveMaxDays, Math.Max(0, medicine.DurationDays));
+                // Without a valid prescription period, we cannot assign coverage dates.
+                return 0;
             }
 
-            // Determine the current expiry date (when existing pills run out)
-            DateTime expiryDate;
-            int alreadyDispensed;
-            
-            if (DateTime.TryParseExact(medicine.LastDispensedExpiryDate, "yyyy-MM-dd", culture, DateTimeStyles.None, out var last))
-            {
-                // Existing expiry from previous dispensing
-                expiryDate = last;
-                alreadyDispensed = (last.Date - start.Date).Days + 1;
-            }
-            else
-            {
-                // New medicine: treat "last expiry" as the day before start date
-                expiryDate = start.Date.AddDays(-1);
-                alreadyDispensed = 0;
-            }
+            var expiryDate = DateTime.TryParseExact(medicine.LastDispensedExpiryDate, "yyyy-MM-dd",
+                culture, DateTimeStyles.None, out var last) ? last.Date : start.Date.AddDays(-1);
+            var endOfPrescription = start.Date.AddDays(medicine.DurationDays); // Exclusive end.
+            var daysUntilExpiry = (expiryDate - today.Date).Days + 1;
 
-            // Calculate how many days of pills are needed total vs what we have
-            var endOfPrescription = start.Date.AddDays(medicine.DurationDays);
-            var remainingNeeded = (endOfPrescription - today).Days;
-            var daysUntilExpiry = (expiryDate.Date - today).Days + 1;
-
-            // If prescription period is over, no dispensing needed
-            if (remainingNeeded <= 0)
+            if (endOfPrescription <= today.Date || expiryDate >= endOfPrescription.AddDays(-1) ||
+                daysUntilExpiry > expiryThreshold)
             {
                 return 0;
             }
 
-            // If we already have enough pills to last until end of prescription, skip
-            if (daysUntilExpiry >= remainingNeeded)
-            {
-                return 0;
-            }
-
-            // Check if pills are running low (within threshold)
-            // If we have more than 'expiryThreshold' days of pills, skip for now
-            if (daysUntilExpiry > expiryThreshold)
-            {
-                return 0;
-            }
-
-            // Calculate remaining days to dispense, capped by both configuration and
-            // the seven-column hardware matrix capacity.
-            var remainingDays = medicine.DurationDays - alreadyDispensed;
+            // Missed days stay missed: start today, or after existing future coverage.
+            // A future prescription must still wait until its own start date.
+            dispensingStartDate = new[] { today.Date, start.Date, expiryDate.AddDays(1) }.Max();
+            var remainingDays = (endOfPrescription - dispensingStartDate).Days;
             return Math.Min(effectiveMaxDays, Math.Max(0, remainingDays));
         }
 
