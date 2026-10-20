@@ -1,4 +1,4 @@
-# 设计系统 —  Pillxar
+# 设计系统 —  Pillxa
 
 > 本文件是全站 UI 的**唯一事实来源（single source of truth）​**。
 > 任何新页面 / 组件都必须使用这里定义的 token 和组件，禁止引入未定义的值。

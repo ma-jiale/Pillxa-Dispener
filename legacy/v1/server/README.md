@@ -2,6 +2,16 @@
 
 EZ-Dose养老院摆药机的后端服务器，基于Flask框架开发，使用SQLite数据库存储数据，为摆药机控制软件提供API服务，同时提供Web管理后台。
 
+## V1 品牌与摆药日期维护
+
+管理网页的显示名称统一为 **Pillxa**。
+
+摆药覆盖日期由 V1 Unity 客户端计算，再通过 `/packer/prescriptions/upload` 上传截止日。新一次摆药从今天、处方开始日、已有覆盖截止日的次日三者中最晚的一天开始，跳过过去未摆药的日期；本次天数仍受处方结束日、补药阈值和最多 7 天限制。例如，处方从 10 月 1 日开始、从未摆药，10 月 20 日实际摆 7 天，则截止日为 10 月 26 日，不补算 1–19 日。
+
+本次起始日期随计划保存，完成时按该日期回写，跨午夜不会将覆盖整体后移。历史记录不重写。**日期修复需要重新打包并安装 V1 Unity 客户端，仅部署服务器不会更新客户端的计算逻辑。**
+
+日期回归验证在仓库根目录运行 `powershell -File legacy/v1/client/tools/test-prescription-dates.ps1`，复用本机已有的 Visual Studio Roslyn 编译器，也可通过 `-CompilerPath` 指定编译器路径。测试直接编译实际 `PrescriptionManager.cs`，仅替代 Unity 的序列化和网络接口，不连接服务器或设备；不代表 Unity/Android 打包或实机验证已通过。
+
 ## 🏗️ 系统架构
 
 ```
@@ -191,7 +201,7 @@ CI 已配置在 `.github/workflows/tests.yml`,push / PR 时在 Python 3.10 / 3.1
 
 ## 🎨 UI/UX 优化与开发指南
 
-在分支 `feature/ux-improvement` 中，系统引进了 **Pillxar** 现代卡片与品牌设计系统，由 Tailwind CSS + Flowbite + Alpine.js 提供技术支撑。
+在分支 `feature/ux-improvement` 中，系统引进了 **Pillxa** 现代卡片与品牌设计系统，由 Tailwind CSS + Flowbite + Alpine.js 提供技术支撑。
 
 ### 1. 前端构建与常用命令
 项目根目录下配置了 `package.json`，运行前端需要确保安装了 Node.js（和 npm/npx）：
