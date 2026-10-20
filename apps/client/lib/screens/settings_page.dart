@@ -470,7 +470,7 @@ class _SettingsPageState extends State<SettingsPage> {
     const _SettingItem(
       _Category.about,
       '应用信息',
-      'Pillxai',
+      'Pillxa',
       '客户端交互预览',
       Text(
         '0.1.0 Preview',

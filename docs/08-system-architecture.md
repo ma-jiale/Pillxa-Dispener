@@ -1,4 +1,4 @@
-# Pillxai Dispenser 系统架构
+# Pillxa Dispenser 系统架构
 
 基线日期：2026 年 10 月 18 日。用户确认 **Flutter + Python/FastAPI**，首发 **Android 平板**，后续支持手机、平板、Windows 和 iOS。已建立 `apps/client` Flutter 客户端交互预览，采用用户确认的极简风格作为唯一界面；移除方案切换栏和其他方案，继续完善处方管理。处方管理、摆药与设置使用内存演示数据。FastAPI、HC-06、后台生命周期和生产数据持久化尚未实现。本文件定义生产系统的责任边界；以下架构要求不是完成证据。运行入口、实际验证结果和当前限制见[客户端说明](../apps/client/README.md)；预览不代表生产业务或真实设备能力已完成。
 

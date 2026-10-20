@@ -1,4 +1,4 @@
-# Pillxai Dispenser 重写功能规格
+# Pillxa Dispenser 重写功能规格
 
 本目录是养老院处方管理与摆药软件重写的业务依据。目标是：工作人员在一个应用里，把某位长者已确定的用药安排落实到药盒，并留下可追溯的结果；各院、各机器独立工作，日常使用无需开发者在场。
 
@@ -6,7 +6,7 @@
 
 ## 品牌素材
 
-项目名称为 **Pillxai Dispenser**。[方形主标志](../assets/branding/pillxa-mark-rounded.png)采用圆角白底 PNG，只有圆角外部透明；[文字标志](../assets/branding/pillxa-wordmark.svg)保留原稿字形，收紧空白画布并按实际比例显示。素材保存在 assets/branding，使用说明见[品牌素材](../assets/branding/README.md)。
+项目名称为 **Pillxa Dispenser**。[方形主标志](../assets/branding/pillxa-mark-rounded.png)采用圆角白底 PNG，只有圆角外部透明；[文字标志](../assets/branding/pillxa-wordmark.svg)保留原稿字形，收紧空白画布并按实际比例显示。素材保存在 assets/branding，使用说明见[品牌素材](../assets/branding/README.md)。
 
 ## 从事实出发
 

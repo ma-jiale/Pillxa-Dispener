@@ -1,4 +1,4 @@
-# Pillxai Dispenser 产品与功能
+# Pillxa Dispenser 产品与功能
 
 本文件定义产品提供的能力、资料输入和可见输出。计算与执行规则唯一见 [02](02-workflows-and-rules.md)，默认设置见 [00](00-scope-and-defaults.md)，页面操作见 [06](06-pages-and-interactions.md)。除注明用户确认外，具体交互与字段要求为本版设计基线。
 

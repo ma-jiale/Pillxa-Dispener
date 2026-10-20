@@ -1,4 +1,4 @@
-# Pillxai Dispenser
+# Pillxa Dispenser
 
 面向养老院的处方管理与摆药系统。工作人员维护长者用药，核对摆药计划，识别药盒，逐药执行并查询实际结果。
 

@@ -37,7 +37,7 @@ class _PillxaiAppState extends State<PillxaiApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Pillxai · 客户端界面预览',
+    title: 'Pillxa · 客户端界面预览',
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
@@ -175,7 +175,7 @@ class _Sidebar extends StatelessWidget {
                     PillxaiMark(size: 27),
                     SizedBox(height: 8),
                     Text(
-                      'Pillxai',
+                      'Pillxa',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
@@ -188,7 +188,7 @@ class _Sidebar extends StatelessWidget {
                     PillxaiMark(size: 25),
                     SizedBox(width: 7),
                     Text(
-                      'Pillxai',
+                      'Pillxa',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,

@@ -1,4 +1,4 @@
-# Pillxai Dispenser 业务流程与规则
+# Pillxa Dispenser 业务流程与规则
 
 本文件是当前执行行为的定义。Q 编号表示用户确认来源，其余细则为可改进的设计基线；实现以完成用户工作与验证结果为依据，调整时直接修改相关规则与案例。默认值统一见 [00](00-scope-and-defaults.md)，设备报文见 [04](04-device-contract.md)，数据字段语义见 [03](03-data-and-records.md)。
 

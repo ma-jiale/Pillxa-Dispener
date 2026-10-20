@@ -5,7 +5,7 @@ class PillxaiMark extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => Semantics(
-    label: 'Pillxai 标志',
+    label: 'Pillxa 标志',
     child: CustomPaint(size: Size(size, size * 1.25), painter: _MarkPainter()),
   );
 }
