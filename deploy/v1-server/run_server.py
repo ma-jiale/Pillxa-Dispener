@@ -3,6 +3,7 @@
 from contextlib import closing
 import os
 from pathlib import Path
+import re
 import sqlite3
 
 
@@ -22,14 +23,21 @@ def main() -> None:
     secret = os.environ.get("V1_SECRET_KEY", "")
     if len(secret) < 32:
         raise SystemExit("V1_SECRET_KEY 必须由服务器配置，且至少包含 32 个字符。")
+    prefix = os.environ.get("V1_URL_PREFIX", "/dispenser")
+    if prefix and not re.fullmatch(r"(?:/[A-Za-z0-9_-]+)+", prefix):
+        raise SystemExit("V1_URL_PREFIX 须为 /dispenser 这样的路径，不带末尾斜杠；根路径部署时留空。")
 
     root = Path(__file__).resolve().parent
     # 旧入口按当前工作目录读写 data 和 static/images，因此必须固定工作目录。
     os.chdir(root)
     # 延迟导入：先验证配置，再让旧应用按原有入口初始化数据库。
-    from main import app
+    import main as application
     from waitress import serve
 
+    # 学校代理把 /dispenser/login 转发为 /login；应用路由保持原样。
+    # 旧应用用模块中的 URL_PREFIX 生成模板资源和跳转地址，部署时统一覆盖为公开路径。
+    application.URL_PREFIX = prefix
+    app = application.app
     app.config.update(SECRET_KEY=secret, DEBUG=False, TESTING=False)
     app.add_url_rule("/__deployment_health", "deployment_health", lambda: health_status(root))
     serve(

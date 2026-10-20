@@ -47,7 +47,7 @@ def read_configuration(root: Path) -> dict[str, str]:
     if os.name == "posix" and environment.stat().st_mode & 0o077:
         raise DeploymentError("server.env 含密钥，请先执行 chmod 600。")
     # 显式默认值也会传给 Compose，避免继承 Runner 中偶然存在的同名环境变量。
-    values = {"V1_BIND_ADDRESS": "127.0.0.1", "V1_PORT": "5068", "V1_THREADS": "4"}
+    values = {"V1_BIND_ADDRESS": "127.0.0.1", "V1_PORT": "5068", "V1_THREADS": "4", "V1_URL_PREFIX": "/dispenser"}
     for line in environment.read_text(encoding="utf-8").splitlines():
         fields = shlex.split(line, comments=True)
         if not fields:
@@ -55,7 +55,7 @@ def read_configuration(root: Path) -> dict[str, str]:
         if len(fields) != 1 or "=" not in fields[0]:
             raise DeploymentError("server.env 只能使用简单的 KEY=value 写法。")
         key, value = fields[0].split("=", 1)
-        if key not in {"V1_SECRET_KEY", "V1_BIND_ADDRESS", "V1_PORT", "V1_THREADS"}:
+        if key not in {"V1_SECRET_KEY", "V1_BIND_ADDRESS", "V1_PORT", "V1_THREADS", "V1_URL_PREFIX"}:
             raise DeploymentError("server.env 中有不支持的配置项。")
         values[key] = value
     if len(values.get("V1_SECRET_KEY", "")) < 32:
@@ -66,6 +66,9 @@ def read_configuration(root: Path) -> dict[str, str]:
         raise DeploymentError("宿主机端口必须在 1024–65535 内。")
     if not 1 <= int(values.get("V1_THREADS", "4")) <= 64:
         raise DeploymentError("V1_THREADS 必须在 1–64 内。")
+    prefix = values["V1_URL_PREFIX"]
+    if prefix and not re.fullmatch(r"(?:/[A-Za-z0-9_-]+)+", prefix):
+        raise DeploymentError("V1_URL_PREFIX 须以 / 开头且不带末尾斜杠，例如 /dispenser；根路径部署时留空。")
     return values
 
 

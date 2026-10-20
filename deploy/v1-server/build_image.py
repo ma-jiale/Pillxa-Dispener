@@ -36,7 +36,7 @@ def prepare_context(repository: Path, output: Path, revision: str) -> Path:
                 continue
             if source.is_file():
                 files[relative.as_posix()] = source
-    for name in ("Dockerfile", ".dockerignore", "run_server.py", "check_health.py", "requirements-deploy.txt"):
+    for name in ("Dockerfile", ".dockerignore", "run_server.py", "check_health.py", "check_web.py", "requirements-deploy.txt"):
         files[name] = deployment / name
     for name, source in files.items():
         if source.is_symlink():
@@ -79,6 +79,8 @@ def smoke_image(tag: str, platform: str, temporary_root: Path) -> None:
             while time.monotonic() < deadline:
                 state = json.loads(subprocess.check_output(["docker", "inspect", name], text=True))[0]["State"]
                 if state.get("Health", {}).get("Status") == "healthy":
+                    # 健康接口通过后还须检查网页，防止 CSS 前缀写错仍被发布。
+                    subprocess.run(["docker", "exec", name, "python", "check_web.py"], check=True)
                     return
                 if state["Status"] in {"exited", "dead"}:
                     break

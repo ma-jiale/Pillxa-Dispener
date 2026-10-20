@@ -14,6 +14,8 @@ services:
       V1_HOST: '0.0.0.0'
       V1_PORT: '5068'
       V1_THREADS: ${V1_THREADS:-4}
+      # 学校代理剥除此前缀再转发；应用用它生成 CSS 和跳转地址。允许留空以部署到根路径。
+      V1_URL_PREFIX: "${V1_URL_PREFIX-/dispenser}"
     ports:
       - target: 5068
         published: "${V1_PORT:-5068}"

@@ -13,9 +13,9 @@
 - 配置文件：`/home/deploy/projects/pillxa-dispenser/v1/shared/server.env`。
 - Python 绝对路径：`/home/deploy/miniforge3/bin/python3`。
 - SQLite 版本：`3.53.4`，宿主机能够成功导入 SQLite 模块。
-- 用户随后反馈 Runner 已显示 `Idle`，并已添加 `pillxa-server` 标签、完成仓库部署设置；后台服务模式和实际部署结果仍需分别验证。
+- Runner 已添加 `pillxa-server` 标签并完成仓库部署设置；[首次 CD](https://github.com/ma-jiale/Pillxa-Dispener/actions/runs/39285086701)已由 `user-Super-Server` 成功执行。后台服务模式仍需单独确认。
 
-因此在 GitHub 的仓库变量 `V1_SERVER_PYTHON` 中填写 `/home/deploy/miniforge3/bin/python3`。这是用户终端提供的验证结果；尚未实际运行后台 Runner 的部署任务。
+因此在 GitHub 的仓库变量 `V1_SERVER_PYTHON` 中填写 `/home/deploy/miniforge3/bin/python3`，首次部署已验证此路径可用于执行部署工具。
 
 若以后切换部署账号或 Python 安装位置，再通过下列命令确认绝对路径，避免后台 Runner 依赖交互终端的 `(base)` 激活状态：
 
@@ -25,14 +25,14 @@ python3 -c "import sys, sqlite3; print(sys.executable); print('SQLite:', sqlite3
 
 确认 Docker 引擎能连接、Compose 插件至少为 **2.24**、宿主机 Python 至少为 **3.10**。Python 在宿主机上只运行无第三方依赖的部署工具和 SQLite 备份；应用所需的 Python **3.12**、Flask、Waitress 和 ReportLab 都在镜像里。
 
-把打印的 Python 路径设为仓库变量 `V1_SERVER_PYTHON`；不需要为应用另建 Miniforge 环境。后台 Runner 是否注册并在线、镜像是否能实际启动仍需验证；终端版本输出不能作为 CD 已上线的证据。本 CD 不自动安装 Docker、修改用户组或升级服务器系统。
+把打印的 Python 路径设为仓库变量 `V1_SERVER_PYTHON`；不需要为应用另建 Miniforge 环境。换服务器时仍需实际验证 Runner 任务和镜像启动；终端版本输出不能作为 CD 已上线的证据。本 CD 不自动安装 Docker、修改用户组或升级服务器系统。
 
 ## 每次更新的流程
 
 1. 代码进入 `main`，已有 **V1 CI** 自动运行。
 2. CI 成功后，**V1 Server CD** 在 GitHub 临时 Linux 机器上检查部署工具，并构建 CI 实际验证过的提交。
 3. Dockerfile 的第一阶段构建 CSS，第二阶段只保留应用运行文件。基础镜像固定到摘要；数据库、照片和真实密钥不进入构建上下文。
-4. 在临时、隔离的数据目录实际启动新镜像，要求 HTTP、版本号和 SQLite 健康检查通过，再导出 `image.tar.gz` 和清单。
+4. 在临时、隔离的数据目录实际启动新镜像，要求 HTTP、版本号和 SQLite 健康检查通过，再验证登录页生成的 CSS 地址及 CSS 内容，之后才导出 `image.tar.gz` 和清单。
 5. 开启部署后，学校 Runner 下载本次制品，验证文件 SHA-256、Git 提交号、镜像内容 ID 和服务器架构。
 6. 先加载新镜像，成功后再确认 `main` 仍是这个版本；短暂停止原容器，备份 SQLite 和图片，启动新版本并等待健康检查。
 7. 成功才更新当前版本记录。失败时尝试恢复上一个容器；首次部署没有旧容器可回退，则停止新容器并保留已生成的数据供重试。
@@ -94,6 +94,7 @@ if not configuration.exists():
     with configuration.open('x', encoding='utf-8') as output:
         output.write(f'V1_SECRET_KEY={secrets.token_urlsafe(48)}\n')
         output.write('V1_BIND_ADDRESS=127.0.0.1\nV1_PORT=5068\nV1_THREADS=4\n')
+        output.write('V1_URL_PREFIX=/dispenser\n')
 configuration.chmod(0o600)
 print('Python 路径：', sys.executable)
 print('配置文件：', configuration)
@@ -106,8 +107,13 @@ PY
 | `V1_BIND_ADDRESS` | `127.0.0.1`，供已有反向代理访问；直接通过服务器端口访问时可设为 `0.0.0.0` |
 | `V1_PORT` | 宿主机端口 `5068`；容器内部固定为 `5068` |
 | `V1_THREADS` | Waitress 请求线程数，默认 `4` |
+| `V1_URL_PREFIX` | 浏览器访问路径的前缀，默认 `/dispenser`；不带末尾 `/`。根路径部署时设为空字符串 |
 
-原启动配置使用 5068 且开启调试。Docker 入口改用 Waitress，并关闭调试和错误栈输出；旧业务代码的路由和前缀配置仍沿用。随机会话密钥替代原固定值后，现有用户可能需要重新登录。服务的外部域名、学校网络入口、反向代理和 HTTPS 按现有学校配置连接到宿主机发布端口。
+原启动配置使用 5068 且开启调试。Docker 入口改用 Waitress，并关闭调试和错误栈输出；部署入口通过 `V1_URL_PREFIX` 覆盖旧模块生成模板资源和跳转地址时使用的前缀，业务路由保持原样。随机会话密钥替代原固定值后，现有用户可能需要重新登录。
+
+学校公开入口是 `https://ixd.sjtu.edu.cn/dispenser/login`。现有代理将 `/dispenser/` 剥除后转发到 `127.0.0.1:5068/`，例如公开的 `/dispenser/static/dist/main.css` 对应容器内部的 `/static/dist/main.css`。`V1_URL_PREFIX=/dispenser` 确保页面也生成这个公开地址；旧配置文件未写此项时自动使用此默认值，无需修改现有密钥文件。
+
+2026 年 10 月 20 日首次外部页面排查发现：登录页返回 200，但仍引用旧的 `/nursing-rx/static/dist/main.css`，该地址返回 502；正确的 `/dispenser/static/dist/main.css` 返回 200 和 CSS。这说明服务健康检查不能代表页面资源正常。`check_web.py` 在镜像发布前验证登录页的本地 CSS 前缀，并模拟代理剥除前缀后实际读取 CSS；不访问外部字体站点，也不登录或修改业务数据。直接通过服务器端口浏览页面时，应设置 `V1_URL_PREFIX=`。
 
 ### 3. 配置普通账号的 Docker 访问
 
@@ -194,14 +200,15 @@ curl -f http://127.0.0.1:5068/__deployment_health
 | `.github/workflows/v1-cd.yml` | main CI 成功后构建，启用后分发部署任务 |
 | `Dockerfile` / `.dockerignore` | 多阶段镜像、固定基础镜像摘要、排除运行资料 |
 | `compose.yaml` | 固定镜像标签、本机端口、持久数据、容器重启与权限 |
-| `build_image.py` | 最小上下文、构建、隔离启动检查、镜像导出、版本及哈希清单 |
+| `build_image.py` | 最小上下文、构建、隔离启动及网页检查、镜像导出、版本及哈希清单 |
 | `deploy.py` | 镜像校验、架构和账号映射、备份、容器更新与回退 |
 | `run_server.py` / `check_health.py` | 生产启动与 Docker HTTP 健康检查 |
+| `check_web.py` | 镜像发布前检查登录页本地 CSS 的公开路径、内容类型和非空内容 |
 | `requirements-deploy.txt` / `server.env.example` | 运行依赖与无真实密钥的配置模板 |
 | `tests/test_deployment.py` | 虚构资料、模拟 Docker 命令下的数据保留与更新状态验证 |
 
-2026 年 10 月 19 日本机已通过 **23 项隔离测试**，全部运行，无跳过；实际验证临时 SQLite 备份、图片保留、版本记录和失败回退选择，并补充首次空目录初始化、首次失败资料保留与重试、已有部署丢库保护，Docker 命令使用模拟。工作流通过 actionlint，Compose 通过项目内官方 Compose 5.6.0 的配置校验。此前已用虚构 Flask 应用实际验证生产入口 HTTP、关闭调试、SQLite 健康检查。
+2026 年 10 月 20 日本机已通过 **32 项隔离测试**，全部运行，无跳过；验证临时 SQLite 备份、图片保留、版本记录、失败回退、首次初始化及丢库保护，并覆盖公开路径配置、旧前缀覆盖及 CSS 错误阻止发布，Docker 命令使用模拟。工作流通过 actionlint，Compose 通过项目内官方 Compose 5.6.0 的配置校验。另用虚构 Flask 应用实际验证生产入口 HTTP、关闭调试、SQLite 健康、CSS 获取和重定向前缀。
 
-当前电脑没有 Docker 引擎，**未在本机构建镜像或运行容器**。CD 在 GitHub 临时机实际构建并启动新镜像，失败即阻止制品发布。学校终端提供的输出已证明该账号能连接 Docker；Runner 后台环境、实际容器初始化与外部访问尚未实测。提交推送后，首次镜像构建和学校服务器部署的实际结果以 **Actions → V1 Server CD** 对应记录为准，本机检查通过不代表真实部署已完成。
+当前电脑没有 Docker 引擎，**未在本机构建镜像或运行容器**。[首次 CD](https://github.com/ma-jiale/Pillxa-Dispener/actions/runs/39285086701)已通过 GitHub 镜像构建与学校部署，外部 `/dispenser/__deployment_health` 也已验证返回正常版本。此次公开路径修复仍须推送后由新的 CD 验证实际镜像，并复查公开登录页资源；本机检查通过不代表新版已部署。
 
 参考：[Compose 更新与健康等待](https://docs.docker.com/reference/cli/docker/compose/up/)、[Flask 生产部署](https://flask.palletsprojects.com/en/stable/deploying/)、[Waitress](https://docs.pylonsproject.org/projects/waitress/en/stable/)。

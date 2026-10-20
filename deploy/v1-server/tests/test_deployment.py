@@ -11,11 +11,13 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import build_image
+import check_web
 import deploy as deployment
 import run_server
 
@@ -78,7 +80,7 @@ class PackageAndConfigurationTests(Fixtures):
             path.write_text("fixture")
         helper = repository / "deploy/v1-server"
         helper.mkdir(parents=True)
-        for filename in ("Dockerfile", ".dockerignore", "run_server.py", "check_health.py", "requirements-deploy.txt"):
+        for filename in ("Dockerfile", ".dockerignore", "run_server.py", "check_health.py", "check_web.py", "requirements-deploy.txt"):
             (helper / filename).write_text("fixture")
         context = build_image.prepare_context(repository, self.directory / "context", NEW_REVISION)
         self.assertTrue((context / "main.py").is_file())
@@ -171,6 +173,86 @@ class PackageAndConfigurationTests(Fixtures):
         with mock.patch.dict(os.environ, {"V1_SECRET_KEY": ""}):
             with self.assertRaises(SystemExit):
                 run_server.main()
+
+
+class PublicPathTests(Fixtures):
+    def test_existing_server_configuration_uses_school_public_path(self):
+        self.assertEqual(deployment.read_configuration(self.shared_data())["V1_URL_PREFIX"], "/dispenser")
+
+    def test_root_and_custom_public_paths_are_supported(self):
+        root = self.shared_data()
+        for prefix in ("", "/clinic/dispenser"):
+            with self.subTest(prefix=prefix):
+                with (root / "shared/server.env").open("a") as environment:
+                    environment.write(f"V1_URL_PREFIX={prefix}\n")
+                self.assertEqual(deployment.read_configuration(root)["V1_URL_PREFIX"], prefix)
+
+    def test_invalid_public_path_is_rejected_before_deployment(self):
+        root = self.shared_data()
+        for prefix in ("dispenser", "/dispenser/", "//example.com", "/../dispenser", "https://example.com"):
+            with self.subTest(prefix=prefix):
+                with (root / "shared/server.env").open("a") as environment:
+                    environment.write(f"V1_URL_PREFIX={prefix}\n")
+                with self.assertRaises(deployment.DeploymentError):
+                    deployment.read_configuration(root)
+
+    def test_production_entry_overrides_the_legacy_template_and_redirect_prefix(self):
+        for prefix in ("/dispenser", "", "/clinic/dispenser"):
+            with self.subTest(prefix=prefix):
+                application = SimpleNamespace(
+                    URL_PREFIX="/nursing-rx", app=SimpleNamespace(config={}, add_url_rule=mock.Mock()),
+                )
+                serve = mock.Mock()
+                with mock.patch.dict(sys.modules, {"main": application, "waitress": SimpleNamespace(serve=serve)}), \
+                        mock.patch.dict(os.environ, {"V1_SECRET_KEY": "s" * 48, "V1_URL_PREFIX": prefix}), \
+                        mock.patch.object(run_server.os, "chdir"):
+                    run_server.main()
+                self.assertEqual(application.URL_PREFIX, prefix)
+                self.assertFalse(application.app.config["DEBUG"])
+                self.assertIs(serve.call_args.args[0], application.app)
+
+    def test_invalid_public_path_fails_before_loading_application(self):
+        with mock.patch.dict(os.environ, {"V1_SECRET_KEY": "s" * 48, "V1_URL_PREFIX": "//example.com"}):
+            with self.assertRaises(SystemExit):
+                run_server.main()
+
+    @staticmethod
+    def response(body, content_type):
+        response = io.BytesIO(body.encode("utf-8"))
+        response.headers = {"Content-Type": content_type}
+        return response
+
+    def test_web_check_fetches_css_after_the_proxy_strips_the_public_path(self):
+        html = '<link rel="stylesheet" href="https://fonts.example.com/font.css">' \
+               '<link rel="stylesheet" href="/dispenser/static/dist/main.css?v=1">'
+        responses = [self.response(html, "text/html"), self.response("body{color:black}", "text/css; charset=utf-8")]
+        with mock.patch.object(check_web.urllib.request, "urlopen", side_effect=responses) as request:
+            check_web.check_web("http://127.0.0.1:5068", "/dispenser")
+        self.assertEqual([call.args[0] for call in request.call_args_list], [
+            "http://127.0.0.1:5068/login", "http://127.0.0.1:5068/static/dist/main.css?v=1",
+        ])
+
+    def test_web_check_rejects_the_old_prefix_seen_in_the_school_page(self):
+        response = self.response('<link rel="stylesheet" href="/nursing-rx/static/dist/main.css">', "text/html")
+        with mock.patch.object(check_web.urllib.request, "urlopen", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "CSS 地址"):
+                check_web.check_web("http://127.0.0.1:5068", "/dispenser")
+
+    def test_web_check_rejects_missing_or_non_css_styles(self):
+        for css, content_type in (("<html>not found</html>", "text/html"), ("", "text/css")):
+            with self.subTest(content_type=content_type, empty=not css):
+                responses = [
+                    self.response('<link rel="stylesheet" href="/dispenser/static/dist/main.css">', "text/html"),
+                    self.response(css, content_type),
+                ]
+                with mock.patch.object(check_web.urllib.request, "urlopen", side_effect=responses):
+                    with self.assertRaisesRegex(RuntimeError, "有效 CSS"):
+                        check_web.check_web("http://127.0.0.1:5068", "/dispenser")
+
+    def test_web_check_requires_a_local_stylesheet(self):
+        with mock.patch.object(check_web.urllib.request, "urlopen", return_value=self.response("<html></html>", "text/html")):
+            with self.assertRaisesRegex(RuntimeError, "没有引用本地 CSS"):
+                check_web.check_web("http://127.0.0.1:5068", "/dispenser")
 
 
 class ContainerUpdateTests(Fixtures):

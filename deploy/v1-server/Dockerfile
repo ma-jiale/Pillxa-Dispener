@@ -19,7 +19,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt requirements-deploy.txt ./
 RUN python -m pip install --no-cache-dir -r requirements-deploy.txt && python -m pip check
-COPY main.py run_server.py check_health.py REVISION ./
+COPY main.py run_server.py check_health.py check_web.py REVISION ./
 COPY templates ./templates
 COPY --from=styles /build/static ./static
 # 运行时这两个目录会挂载学校服务器上的持久数据，不把业务数据写进镜像。
