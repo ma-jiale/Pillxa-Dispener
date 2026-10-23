@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../widgets/pillxai_mark.dart';
-
 /// Local preview only. Real authentication belongs to the account service.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onDemoLogin});
@@ -28,20 +26,13 @@ class _LoginPageState extends State<LoginPage> {
   void _login() {
     setState(() => _error = null);
     if (!_formKey.currentState!.validate()) return;
-    if (_account.text.trim() != 'demo' || _password.text != 'pillxai') {
-      setState(() => _error = '演示账号或密码不正确，请使用下方的演示账号。');
+    if (_account.text.trim() != 'admin' || _password.text != 'admin123') {
+      setState(() => _error = '账号或密码不正确，请重新输入。');
       return;
     }
     FocusScope.of(context).unfocus();
     _password.clear();
     widget.onDemoLogin();
-  }
-
-  void _fillDemoAccount() {
-    _formKey.currentState!.reset();
-    _account.text = 'demo';
-    _password.text = 'pillxai';
-    setState(() => _error = null);
   }
 
   @override
@@ -61,8 +52,6 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     const Row(
                       children: [
-                        PillxaiMark(size: 24),
-                        SizedBox(width: 8),
                         Text(
                           'Pillxa',
                           style: TextStyle(
@@ -186,22 +175,6 @@ class _LoginPageState extends State<LoginPage> {
                             ],
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      '界面预览 · 暂未接入登录服务',
-                      style: TextStyle(fontSize: 11, color: Color(0xff888888)),
-                    ),
-                    TextButton(
-                      key: const ValueKey('fill-demo-account'),
-                      onPressed: _fillDemoAccount,
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xff555555),
-                      ),
-                      child: const Text(
-                        '填入演示账号',
-                        style: TextStyle(fontSize: 12),
                       ),
                     ),
                   ],

@@ -213,7 +213,7 @@ class _Sidebar extends StatelessWidget {
     padding: EdgeInsets.fromLTRB(compact ? 8 : 16, 12, compact ? 8 : 16, 20),
     child: AppActionMenu(
       key: const ValueKey('account-menu'),
-      tooltip: '演示护理员 · 账户菜单',
+      tooltip: '管理员 · 账户菜单',
       header: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -227,12 +227,12 @@ class _Sidebar extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '演示护理员',
+                '管理员',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 3),
               Text(
-                '演示账户',
+                '院内管理员',
                 style: TextStyle(fontSize: 11, color: Color(0xff858585)),
               ),
             ],
@@ -249,7 +249,7 @@ class _Sidebar extends StatelessWidget {
           children: [
             const ProfileAvatar(
               asset: 'assets/images/avatars/account.png',
-              label: '演示护理员头像',
+              label: '管理员头像',
             ),
             if (!compact) ...[
               const SizedBox(width: 12),
@@ -258,7 +258,7 @@ class _Sidebar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '演示护理员',
+                      '管理员',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -266,7 +266,7 @@ class _Sidebar extends StatelessWidget {
                     ),
                     SizedBox(height: 3),
                     Text(
-                      '演示账户',
+                      '院内管理员',
                       style: TextStyle(fontSize: 11, color: Color(0xff858585)),
                     ),
                   ],

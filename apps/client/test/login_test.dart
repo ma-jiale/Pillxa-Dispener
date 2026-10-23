@@ -27,7 +27,7 @@ void main() {
     await tester.ensureVisible(find.byKey(submit));
     await tester.tap(find.byKey(submit));
     await tester.pumpAndSettle();
-    expect(find.text('演示账号或密码不正确，请使用下方的演示账号。'), findsOneWidget);
+    expect(find.text('账号或密码不正确，请重新输入。'), findsOneWidget);
     expect(find.byKey(const ValueKey('nav-1')), findsNothing);
     await tester.tap(find.byTooltip('显示密码'));
     await tester.pumpAndSettle();
@@ -36,16 +36,19 @@ void main() {
       matching: find.byType(TextField),
     );
     expect(tester.widget<TextField>(field).obscureText, isFalse);
-    await tester.ensureVisible(find.byKey(const ValueKey('fill-demo-account')));
-    await tester.tap(find.byKey(const ValueKey('fill-demo-account')));
+    await tester.enterText(find.byKey(account), 'admin');
+    await tester.enterText(find.byKey(password), 'admin123');
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(password));
     await tester.showKeyboard(find.byKey(password));
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
+    expect(find.text('管理员'), findsOneWidget);
+    expect(find.text('院内管理员'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('account-menu')));
     await tester.pumpAndSettle();
+    expect(find.text('院内管理员'), findsNWidgets(2));
     await tester.tap(find.text('退出当前用户'));
     await tester.pumpAndSettle();
     expect(find.text('欢迎回来'), findsOneWidget);
