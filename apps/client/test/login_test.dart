@@ -43,7 +43,7 @@ void main() {
     await tester.showKeyboard(find.byKey(password));
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('dispense-primary')), findsOneWidget);
+    expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('account-menu')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('退出当前用户'));

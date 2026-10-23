@@ -82,6 +82,7 @@ class Medicine {
     DateTime? endDate,
     bool clearEndDate = false,
     bool? stopped,
+    int? target,
   }) => Medicine(
     id: id,
     name: name ?? this.name,
@@ -90,7 +91,7 @@ class Medicine {
     doses: doses ?? this.doses,
     unit: unit ?? this.unit,
     meal: meal ?? this.meal,
-    target: target,
+    target: target ?? this.target,
     startDate: startDate ?? this.startDate,
     endDate: clearEndDate ? null : endDate ?? this.endDate,
     stopped: stopped ?? this.stopped,
@@ -126,6 +127,23 @@ enum DispenseStage {
 /// In-memory preview data only. No network, hardware commands or actual records.
 class DemoModel extends ChangeNotifier {
   DemoModel({bool autoTick = true}) {
+    final today = DateTime.now();
+    demoCoverage['r3'] = DateTime(today.year, today.month, today.day + 4);
+    residents.first.medicines.addAll(
+      List.generate(
+        5,
+        (index) => Medicine(
+          id: 'sample-${index + 5}',
+          name: index < 3 ? '示例药${index + 3}' : '示例长名称药物${index + 3}（普通片）',
+          strength: '${(index + 1) * 10} mg / 片',
+          doses: DoseSchedule(
+            morning: 2,
+            noon: index.isEven ? 1 : 0,
+            evening: 1,
+          ),
+        ),
+      ),
+    );
     prepareTask(residents.first, notify: false);
     if (autoTick) {
       _ticker = Timer.periodic(const Duration(seconds: 2), (_) => advance());
@@ -202,6 +220,7 @@ class DemoModel extends ChangeNotifier {
       residents.firstWhere((r) => r.id == selectedResidentId);
   String taskResidentName = '';
   String taskResidentBed = '';
+  String? taskResidentAvatar;
   List<Medicine> taskMedicines = [];
   int medicineIndex = 0;
   int count = 0;
@@ -212,6 +231,29 @@ class DemoModel extends ChangeNotifier {
   bool bedtime = false;
   bool startTomorrow = false;
   Timer? _ticker;
+  final Map<String, DateTime> demoCoverage = {};
+  String? _preparedResidentId;
+  DateTime? _preparedEnd;
+
+  bool startPreparedTask(
+    Resident resident,
+    List<Medicine> medicines, {
+    DateTime? end,
+  }) {
+    if (active || medicines.isEmpty) return false;
+    taskResidentName = resident.name;
+    taskResidentBed = resident.bed;
+    taskResidentAvatar = resident.avatarAsset;
+    taskMedicines = List.unmodifiable(medicines);
+    _preparedResidentId = resident.id;
+    _preparedEnd = end;
+    medicineIndex = 0;
+    count = 0;
+    opening = .70;
+    stage = DispenseStage.running;
+    notifyListeners();
+    return true;
+  }
 
   Medicine get currentMedicine => taskMedicines[medicineIndex];
   Medicine? get nextMedicine => medicineIndex + 1 < taskMedicines.length
@@ -286,8 +328,11 @@ class DemoModel extends ChangeNotifier {
 
   bool prepareTask(Resident resident, {bool notify = true}) {
     if (preparationIssue(resident) != null) return false;
+    _preparedResidentId = null;
+    _preparedEnd = null;
     taskResidentName = resident.name;
     taskResidentBed = resident.bed;
+    taskResidentAvatar = resident.avatarAsset;
     taskMedicines = resident.medicines
         .where((medicine) => medicine.isEffectiveOn(DateTime.now()))
         .toList();
@@ -331,6 +376,11 @@ class DemoModel extends ChangeNotifier {
       stage = nextMedicine == null
           ? DispenseStage.completed
           : DispenseStage.nextMedicine;
+      if (stage == DispenseStage.completed &&
+          _preparedResidentId != null &&
+          _preparedEnd != null) {
+        demoCoverage[_preparedResidentId!] = _preparedEnd!;
+      }
     }
     notifyListeners();
   }

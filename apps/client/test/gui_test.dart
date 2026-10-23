@@ -23,11 +23,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-1')));
     await tester.pumpAndSettle();
-    expect(find.text('模拟识别药盒'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('dispense-primary')));
+    await tester.tap(find.byKey(const ValueKey('prepare-r1')));
     await tester.pumpAndSettle();
-    expect(find.text('开始摆药'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('dispense-primary')));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byKey(const ValueKey('box-feedback')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('模拟反馈：本人药盒').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-dispense')));
     model.advance();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-0')));
@@ -111,7 +114,7 @@ void main() {
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('dispense-primary')), findsOneWidget);
+    expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('nav-1'))).dy,
       lessThan(tester.getTopLeft(find.byKey(const ValueKey('nav-0'))).dy),

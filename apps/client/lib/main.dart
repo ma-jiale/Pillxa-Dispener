@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'models/demo_model.dart';
-import 'screens/dispensing_page.dart';
+import 'screens/preparation_page.dart';
 import 'screens/login_page.dart';
 import 'screens/prescriptions_page.dart';
 import 'screens/settings_page.dart';
@@ -79,7 +79,7 @@ class _PillxaiAppState extends State<PillxaiApp> {
                                     onOpenDispensing: () =>
                                         setState(() => page = 1),
                                   ),
-                                  DispensingPage(model: model),
+                                  PreparationPage(model: model),
                                   SettingsPage(
                                     model: model,
                                     accent: accent,

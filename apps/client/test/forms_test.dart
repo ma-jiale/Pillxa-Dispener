@@ -20,6 +20,15 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final model = DemoModel(autoTick: false);
+    model.residents.first.medicines.removeRange(
+      2,
+      model.residents.first.medicines.length,
+    );
+    model.prepareTask(model.residents.first, notify: false);
+    if (page == 1) {
+      model.verifyBox();
+      model.start();
+    }
     addTearDown(model.dispose);
     await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
     await tester.pumpAndSettle();
@@ -87,6 +96,9 @@ void main() {
 
   testWidgets('编辑药物只改变处方，已经创建的任务保留原始用药内容', (tester) async {
     final model = await openApp(tester);
+    model.verifyBox();
+    model.start();
+    await tester.pumpAndSettle();
     final originalName = model.currentMedicine.name;
     final originalStrength = model.currentMedicine.strength;
     final originalTarget = model.currentMedicine.target;
@@ -108,7 +120,7 @@ void main() {
     await tapVisible(tester, find.byKey(const ValueKey('nav-1')));
     expect(find.text(originalName), findsWidgets);
     expect(find.text('修改后的演示药'), findsNothing);
-    expect(model.stage, DispenseStage.awaitingVerification);
+    expect(model.stage, DispenseStage.running);
     expect(tester.takeException(), isNull);
   });
 

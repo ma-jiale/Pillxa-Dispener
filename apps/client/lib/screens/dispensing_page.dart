@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/app_menu.dart';
+import '../widgets/profile_avatar.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_page.dart';
 
 class DispensingPage extends StatelessWidget {
   const DispensingPage({super.key, required this.model});
@@ -15,9 +17,8 @@ class DispensingPage extends StatelessWidget {
     builder: (context, _) => LayoutBuilder(
       builder: (context, bounds) {
         final compact = bounds.maxWidth < 700;
-        final padding = compact ? 20.0 : 32.0;
         return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(padding, compact ? 28 : 40, padding, 28),
+          padding: AppPage.insets(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -74,16 +75,12 @@ class DispensingPage extends StatelessWidget {
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('摆药', style: Theme.of(context).textTheme.headlineMedium),
+        const PageTitle('正在分药', key: ValueKey('page-title-dispensing')),
         const SizedBox(height: 8),
-        Text(
-          [
-            model.taskResidentName,
-            if (model.taskResidentBed.isNotEmpty) model.taskResidentBed,
-          ].join(' · '),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 14, color: Color(0xff777777)),
+        ResidentIdentity(
+          name: model.taskResidentName,
+          bed: model.taskResidentBed,
+          asset: model.taskResidentAvatar,
         ),
       ],
     );
