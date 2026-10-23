@@ -107,6 +107,13 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('pattern-open')));
       await tester.pumpAndSettle();
       await capture('pattern');
+      expect(find.text('计划 · 1 点 = 1 颗'), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('pattern-close')))
+            .onPressed,
+        isNotNull,
+      );
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('关闭').last);
       await tester.pumpAndSettle();
@@ -137,6 +144,50 @@ void main() {
         titleOrigin,
       );
       await capture('execution');
+      final currentBounds = tester.getRect(
+        find.byKey(const ValueKey('medicine-current-slot')),
+      );
+      final nextBounds = tester.getRect(
+        find.byKey(const ValueKey('medicine-next-slot')),
+      );
+      final target = model.currentMedicine.target;
+      for (var count = model.count; count < target; count++) {
+        model.advance();
+      }
+      await tester.pump();
+      final promotion = find.byKey(const ValueKey('medicine-promotion'));
+      expect(tester.getRect(promotion), nextBounds);
+      await capture('switch-start');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 180));
+      final movingBounds = tester.getRect(promotion);
+      if (nextBounds.left > currentBounds.left) {
+        expect(movingBounds.left, lessThan(nextBounds.left));
+        expect(movingBounds.left, greaterThan(currentBounds.left));
+      } else {
+        expect(movingBounds.top, lessThan(nextBounds.top));
+        expect(movingBounds.top, greaterThan(currentBounds.top));
+      }
+      await capture('switch-middle');
+      await tester.pump(const Duration(milliseconds: 420));
+      expect(
+        tester.getRect(promotion),
+        tester.getRect(find.byKey(const ValueKey('medicine-current-slot'))),
+      );
+      await capture('switch-arrive');
+      await tester.pumpAndSettle();
+      expect(promotion, findsNothing);
+      await capture('switch-end');
+      final skip = find.byKey(const ValueKey('skip-medicine'));
+      await tester.ensureVisible(skip);
+      await tester.tap(skip);
+      await tester.pumpAndSettle();
+      await capture('skip');
+      await tester.tap(find.byKey(const ValueKey('skip-mark-prepared')));
+      await tester.pumpAndSettle();
+      await capture('skip-marked');
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
   }

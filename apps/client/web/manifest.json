@@ -5,15 +5,8 @@
     "display": "standalone",
     "background_color": "#fafafa",
     "theme_color": "#fafafa",
-    "description": "处方管理与摆药界面 · 八套设计方案交互预览",
+    "description": "Pillxa 处方管理与摆药界面预览",
     "orientation": "any",
     "prefer_related_applications": false,
-    "icons": [
-        {
-            "src": "brand.svg",
-            "sizes": "any",
-            "type": "image/svg+xml",
-            "purpose": "any"
-        }
-    ]
+    "icons": []
 }

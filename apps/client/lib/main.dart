@@ -4,13 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'models/demo_model.dart';
+import 'models/device_preview_model.dart';
+import 'screens/devices_page.dart';
 import 'screens/preparation_page.dart';
 import 'screens/login_page.dart';
 import 'screens/prescriptions_page.dart';
 import 'screens/settings_page.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_page.dart';
 import 'widgets/profile_avatar.dart';
-import 'widgets/pillxai_mark.dart';
 import 'widgets/app_menu.dart';
 
 void main() => runApp(const PillxaiApp());
@@ -25,19 +27,21 @@ class PillxaiApp extends StatefulWidget {
 
 class _PillxaiAppState extends State<PillxaiApp> {
   late final DemoModel model = widget.model ?? DemoModel();
+  final devices = DevicePreviewModel();
   Color accent = const Color(0xff191919);
   int page = 1;
   late bool _signedIn = widget.initiallySignedIn;
 
   @override
   void dispose() {
+    devices.dispose();
     if (widget.model == null) model.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Pillxa · 客户端界面预览',
+    title: 'Pillxa',
     debugShowCheckedModeBanner: false,
     locale: const Locale('zh', 'CN'),
     supportedLocales: const [Locale('zh', 'CN')],
@@ -70,15 +74,57 @@ class _PillxaiAppState extends State<PillxaiApp> {
                       Expanded(
                         child: Column(
                           children: [
+                            if (page != 2)
+                              ColoredBox(
+                                key: const ValueKey('workspace-header'),
+                                color: Theme.of(context)
+                                    .scaffoldBackgroundColor,
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minHeight: 88,
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: bounds.maxWidth < 900
+                                          ? 20
+                                          : 32,
+                                      vertical: 16,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: ListenableBuilder(
+                                            listenable: model,
+                                            builder: (context, _) => PageTitle(
+                                              page == 0
+                                                  ? '处方管理'
+                                                  : model.active
+                                                  ? '正在分药'
+                                                  : '摆药',
+                                              key: ValueKey(
+                                                'page-title-${['prescriptions', 'dispensing', 'settings'][page]}',
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (page == 1) ...[
+                                          const SizedBox(width: 16),
+                                          DeviceStatusButton(
+                                            devices: devices,
+                                            onPressed: () =>
+                                                _openDevices(context),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             Expanded(
                               child: IndexedStack(
                                 index: page,
                                 children: [
-                                  PrescriptionsPage(
-                                    model: model,
-                                    onOpenDispensing: () =>
-                                        setState(() => page = 1),
-                                  ),
+                                  PrescriptionsPage(model: model),
                                   PreparationPage(model: model),
                                   SettingsPage(
                                     model: model,
@@ -133,6 +179,11 @@ class _PillxaiAppState extends State<PillxaiApp> {
     ),
   );
 
+  void _openDevices(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (_) => DevicesPage(devices: devices, taskModel: model),
+  );
+
   void _signOut(BuildContext context) {
     if (model.active) {
       ScaffoldMessenger.of(context)
@@ -158,9 +209,9 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     width: compact ? 76 : 232,
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(right: BorderSide(color: Color(0xffe5e5e5))),
+    decoration: BoxDecoration(
+      color: selected == 2 ? AppPage.navigationBackground : Colors.white,
+      border: const Border(right: BorderSide(color: Color(0xffe5e5e5))),
     ),
     child: Column(
       children: [
@@ -169,34 +220,18 @@ class _Sidebar extends StatelessWidget {
             vertical: compact ? 24 : 32,
             horizontal: compact ? 10 : 32,
           ),
-          child: compact
-              ? const Column(
-                  children: [
-                    PillxaiMark(size: 27),
-                    SizedBox(height: 8),
-                    Text(
-                      'Pillxa',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                )
-              : const Row(
-                  children: [
-                    PillxaiMark(size: 25),
-                    SizedBox(width: 7),
-                    Text(
-                      'Pillxa',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -.8,
-                      ),
-                    ),
-                  ],
-                ),
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              'Pillxa',
+              textAlign: compact ? TextAlign.center : TextAlign.left,
+              style: TextStyle(
+                fontSize: compact ? 14 : 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -.8,
+              ),
+            ),
+          ),
         ),
         const SizedBox(height: 48),
         _item(1, Icons.medication_outlined, '摆药'),

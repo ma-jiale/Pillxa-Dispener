@@ -9,13 +9,8 @@ import '../widgets/prescription_forms.dart';
 import '../widgets/profile_avatar.dart';
 
 class PrescriptionsPage extends StatefulWidget {
-  const PrescriptionsPage({
-    super.key,
-    required this.model,
-    required this.onOpenDispensing,
-  });
+  const PrescriptionsPage({super.key, required this.model});
   final DemoModel model;
-  final VoidCallback onOpenDispensing;
 
   @override
   State<PrescriptionsPage> createState() => _PrescriptionsPageState();
@@ -62,15 +57,6 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _prepareTask(Resident resident) {
-    final issue = widget.model.preparationIssue(resident);
-    if (issue != null) {
-      _notify(issue);
-      return;
-    }
-    if (widget.model.prepareTask(resident)) widget.onOpenDispensing();
-  }
-
   Future<void> _editResident([Resident? resident]) async {
     final updated = await showDialog<Resident>(
       context: context,
@@ -108,7 +94,7 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         content: Text(
           medicine.stopped
               ? '恢复后沿用原用药条目及日期，请核对剂量和疗程。'
-              : '条目会保留在已停用用药中。当前正在进行的演示任务仍使用原来的内容。',
+              : '条目会保留在已停用用药中。正在进行的任务仍使用原来的用药安排。',
         ),
         actions: [
           TextButton(
@@ -143,10 +129,6 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const PageTitle('处方管理', key: ValueKey('page-title-prescriptions')),
-            const SizedBox(height: 6),
-            const Text('长者资料与用药安排', style: TextStyle(color: Color(0xff737373))),
-            const SizedBox(height: 28),
             LayoutBuilder(
               builder: (context, constraints) {
                 final list = _residentList(residents);
@@ -175,11 +157,6 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
                   ],
                 );
               },
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '交互预览 · 资料仅保存在本次打开期间',
-              style: TextStyle(fontSize: 12, color: Color(0xff858585)),
             ),
           ],
         ),
@@ -402,37 +379,6 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
               ],
             ),
           ],
-          const SizedBox(height: 20),
-          const Divider(height: 1),
-          const SizedBox(height: 22),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            runSpacing: 16,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '仅用于界面演示',
-                    style: TextStyle(fontSize: 12, color: Color(0xff737373)),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    '今日有效用药 · 预设演示数量',
-                    style: TextStyle(fontSize: 12, color: Color(0xff969696)),
-                  ),
-                ],
-              ),
-
-              FilledButton.icon(
-                onPressed: () => _prepareTask(resident),
-                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-                iconAlignment: IconAlignment.end,
-                label: const Text('预览摆药'),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -563,7 +509,7 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
           : Image.asset(
               medicine.imageAsset!,
               fit: BoxFit.cover,
-              semanticLabel: '${medicine.name} 药品演示图',
+              semanticLabel: '${medicine.name} 药品图片',
             ),
     ),
   );

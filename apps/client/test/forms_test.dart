@@ -60,7 +60,7 @@ void main() {
     expect(find.text('没有匹配的长者'), findsOneWidget);
     expect(find.text('未找到长者，请调整搜索内容。'), findsOneWidget);
     expect(find.text('当前用药'), findsNothing);
-    expect(find.text('预览摆药'), findsNothing);
+    expect(find.text('准备摆药'), findsNothing);
 
     await tapVisible(tester, find.byTooltip('清空搜索'));
     expect(find.text('当前用药'), findsOneWidget);
@@ -139,7 +139,8 @@ void main() {
     expect(model.selectedResident.id, id);
     expect(model.selectedResident.name, '周女士');
     expect(find.text('周女士'), findsWidgets);
-    expect(find.text('预览摆药'), findsOneWidget);
+    expect(find.text('准备摆药'), findsNothing);
+    expect(find.text('摆药准备'), findsNothing);
     expect(find.text('在院'), findsNothing);
     expect(find.text('已离院'), findsNothing);
     expect(find.text('王奶奶'), findsWidgets);
@@ -227,11 +228,11 @@ void main() {
     await tapVisible(tester, find.byKey(const ValueKey('settings-appearance')));
     final customColor = find.byKey(const ValueKey('custom-accent-input'));
     await tester.enterText(customColor, '#XYZ');
-    await tapVisible(tester, find.text('应用'));
+    await tapVisible(tester, find.widgetWithText(TextButton, '应用'));
     expect(find.text('请输入 6 位颜色代码，如 #2867BD'), findsOneWidget);
 
     await tester.enterText(customColor, '#2867BD');
-    await tapVisible(tester, find.text('应用'));
+    await tapVisible(tester, find.widgetWithText(TextButton, '应用'));
     expect(find.text('请输入 6 位颜色代码，如 #2867BD'), findsNothing);
     await tapVisible(tester, find.byKey(const ValueKey('nav-1')));
 

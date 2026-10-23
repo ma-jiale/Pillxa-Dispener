@@ -7,17 +7,16 @@
   <meta name="description" content="Pillxa 客户端 GUI 交互预览：处方管理、摆药与个性化设置。">
   <meta name="theme-color" content="#ffffff">
   <title>Pillxa · 界面预览</title>
-  <link rel="icon" type="image/svg+xml" href="brand.svg">
+  <link rel="icon" href="data:,">
   <link rel="manifest" href="manifest.json">
   <style>
     body{margin:0;background:#fafafa}
     #loading{position:fixed;inset:0;display:flex;flex-direction:column;gap:18px;align-items:center;justify-content:center;font-family:Arial,"Microsoft YaHei",sans-serif;color:#222}
-    #loading img{width:40px;height:50px}
     #loading strong{font-size:25px;letter-spacing:-1px}
   </style>
 </head>
 <body>
-  <div id="loading"><img src="brand.svg" alt=""><strong>Pillxa</strong></div>
+  <div id="loading"><strong>Pillxa</strong></div>
   <script>window.addEventListener('flutter-first-frame', () => document.getElementById('loading')?.remove());</script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

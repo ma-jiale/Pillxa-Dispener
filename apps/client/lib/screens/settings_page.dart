@@ -7,15 +7,13 @@ import '../theme/app_theme.dart';
 import '../widgets/app_menu.dart';
 
 enum _Category {
-  general('通用', Icons.tune_rounded, '摆药的准备周期与药盒布局'),
-  appearance('外观', Icons.palette_outlined, '让界面更符合你的使用习惯'),
-  device('本机设备', Icons.bluetooth_rounded, '查看这台终端的设备连接'),
-  about('演示与关于', Icons.info_outline_rounded, '演示体验与应用信息');
+  general('通用', Icons.tune_rounded),
+  appearance('外观', Icons.palette_outlined),
+  about('关于', Icons.info_outline_rounded);
 
-  const _Category(this.label, this.icon, this.description);
+  const _Category(this.label, this.icon);
   final String label;
   final IconData icon;
-  final String description;
 }
 
 class SettingsPage extends StatefulWidget {
@@ -49,6 +47,21 @@ class _SettingsPageState extends State<SettingsPage> {
   late final _hexController = TextEditingController(text: _hex(widget.accent));
   _Category _category = _Category.general;
   String? _colorError;
+  bool _autoUpdate = true;
+
+  void _checkForUpdates() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('检查更新'),
+      content: const Text('当前版本 0.1.0\n\n更新服务尚未接入，暂时无法检查新版本。'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('知道了'),
+        ),
+      ],
+    ),
+  );
 
   String _hex(Color color) =>
       '#${(color.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0').toUpperCase()}';
@@ -92,60 +105,42 @@ class _SettingsPageState extends State<SettingsPage> {
         tomorrow: tomorrow ?? widget.model.startTomorrow,
       );
 
-  Future<void> _resetDispensing() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('重置摆药演示？'),
-        content: const Text('当前演示进度将清空。处方与设置会保留；此操作不会连接或控制设备。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('保留当前进度'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('确认重置'),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || confirmed != true) return;
-    widget.model.resetDemo();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('摆药演示已重置')));
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.model,
     builder: (context, _) => LayoutBuilder(
       builder: (context, bounds) {
         if (bounds.maxWidth < 720) {
-          return SingleChildScrollView(
-            padding: AppPage.insets(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const PageTitle('设置', key: ValueKey('page-title-settings')),
-                const SizedBox(height: 20),
-                _searchField(),
-                const SizedBox(height: 12),
-                AppSelect<_Category>(
-                  key: ValueKey(_category),
-                  value: _category,
-                  label: '设置分类',
-                  showLabel: true,
-                  options: [
-                    for (final category in _Category.values)
-                      AppSelectOption(category, category.label),
-                  ],
-                  onChanged: _selectCategory,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _header(context),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: AppPage.insets(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _searchField(),
+                      const SizedBox(height: 12),
+                      AppSelect<_Category>(
+                        key: ValueKey(_category),
+                        value: _category,
+                        label: '设置分类',
+                        showLabel: true,
+                        options: [
+                          for (final category in _Category.values)
+                            AppSelectOption(category, category.label),
+                        ],
+                        onChanged: _selectCategory,
+                      ),
+                      const SizedBox(height: 30),
+                      _content(context),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 30),
-                _content(context),
-              ],
-            ),
+              ),
+            ],
           );
         }
         return Row(
@@ -154,31 +149,28 @@ class _SettingsPageState extends State<SettingsPage> {
             SizedBox(
               width: 204,
               child: ColoredBox(
-                color: const Color(0xfff6f6f6),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 40, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: PageTitle(
-                          '设置',
-                          key: ValueKey('page-title-settings'),
+                color: AppPage.navigationBackground,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _header(context),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _searchField(),
+                            _navigationGroup('偏好设置', [
+                              _Category.general,
+                              _Category.appearance,
+                            ]),
+                            _navigationGroup('应用', [_Category.about]),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      _searchField(),
-                      _navigationGroup('偏好设置', [
-                        _Category.general,
-                        _Category.appearance,
-                      ]),
-                      _navigationGroup('设备与应用', [
-                        _Category.device,
-                        _Category.about,
-                      ]),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -189,7 +181,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   key: ValueKey(_category),
                   padding: EdgeInsets.fromLTRB(
                     bounds.maxWidth > 1000 ? 48 : 32,
-                    48,
+                    24,
                     bounds.maxWidth > 1000 ? 48 : 32,
                     32,
                   ),
@@ -207,6 +199,17 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       },
     ),
+  );
+
+  Widget _header(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 88),
+    alignment: Alignment.centerLeft,
+    padding: EdgeInsets.symmetric(
+      horizontal: MediaQuery.sizeOf(context).width < 900 ? 20 : 32,
+      vertical: 16,
+    ),
+    color: AppPage.navigationBackground,
+    child: const PageTitle('设置', key: ValueKey('page-title-settings')),
   );
 
   Widget _searchField() => TextField(
@@ -306,11 +309,6 @@ class _SettingsPageState extends State<SettingsPage> {
           query.isEmpty ? _category.label : '搜索结果',
           style: Theme.of(context).textTheme.headlineMedium,
         ),
-        const SizedBox(height: 8),
-        Text(
-          query.isEmpty ? _category.description : '找到 ${items.length} 项设置',
-          style: const TextStyle(fontSize: 13, color: Color(0xff777777)),
-        ),
         const SizedBox(height: 40),
         if (items.isEmpty)
           const Padding(
@@ -332,10 +330,6 @@ class _SettingsPageState extends State<SettingsPage> {
           _groupCard(items.where((item) => item.group == group).toList()),
           const SizedBox(height: 36),
         ],
-        const Text(
-          '界面预览 · 设置仅保留在本次会话中',
-          style: TextStyle(fontSize: 11, color: Color(0xff929292)),
-        ),
       ],
     );
   }
@@ -439,41 +433,32 @@ class _SettingsPageState extends State<SettingsPage> {
       wideControl: true,
     ),
     const _SettingItem(
-      _Category.appearance,
-      '图片显示',
-      '药品图片',
-      '保持原本色彩，不跟随界面强调色变化。',
-      Text('原色', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
-    ),
-    const _SettingItem(
-      _Category.device,
-      '设备连接',
-      '摆药机',
-      'HC-06 · 预览尚未接入真实设备。',
-      Text('未连接', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
-    ),
-    const _SettingItem(
-      _Category.device,
-      '设备连接',
-      '连接方式',
-      'Android 平板通过蓝牙直连，通常一台终端固定一台机器。',
-      Text('蓝牙', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
-    ),
-    _SettingItem(
-      _Category.about,
-      '演示体验',
-      '重置摆药演示',
-      '清空演示进度，保留处方和设置。',
-      OutlinedButton(onPressed: _resetDispensing, child: const Text('重置')),
-    ),
-    const _SettingItem(
       _Category.about,
       '应用信息',
       'Pillxa',
-      '客户端交互预览',
-      Text(
-        '0.1.0 Preview',
-        style: TextStyle(fontSize: 13, color: Color(0xff737373)),
+      '处方管理与摆药',
+      Text('0.1.0', style: TextStyle(fontSize: 13, color: Color(0xff737373))),
+    ),
+    _SettingItem(
+      _Category.about,
+      '软件更新',
+      '检查更新',
+      '检查是否有可用的新版本。',
+      OutlinedButton(
+        key: const ValueKey('check-for-updates'),
+        onPressed: _checkForUpdates,
+        child: const Text('检查更新'),
+      ),
+    ),
+    _SettingItem(
+      _Category.about,
+      '软件更新',
+      '自动更新',
+      '有新版本时，在空闲状态下自动下载并安装；摆药期间不安装。',
+      Switch(
+        key: const ValueKey('auto-update'),
+        value: _autoUpdate,
+        onChanged: (value) => setState(() => _autoUpdate = value),
       ),
     ),
   ];

@@ -26,9 +26,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('prepare-r1')));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.tap(find.byKey(const ValueKey('box-feedback')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('模拟反馈：本人药盒').last);
+    model.boxFeedback.value = BoxFeedback.match;
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('confirm-dispense')));
     model.advance();
@@ -45,6 +43,85 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('dispense-primary')));
     await tester.pumpAndSettle();
     expect(model.stage, DispenseStage.paused);
+    expect(model.count, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('完成后以动画切换并自动开始下一药，暂停可用且最后一药正常收尾', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final model = DemoModel(autoTick: false);
+    addTearDown(model.dispose);
+    model.prepareTask(
+      Resident(
+        id: 'automatic-next',
+        name: '测试长者',
+        bed: '101 床',
+        medicines: [
+          for (final name in ['第一种药', '第二种药', '第三种药'])
+            Medicine(id: name, name: name, strength: '5 mg', target: 1),
+        ],
+      ),
+    );
+    model.verifyBox();
+    model.start();
+    await tester.pumpWidget(PillxaiApp(model: model, initiallySignedIn: true));
+    await tester.pumpAndSettle();
+    expect(find.text('第一种药'), findsOneWidget);
+    final previousBounds = tester.getRect(
+      find.byKey(const ValueKey('medicine-current-slot')),
+    );
+    final previewBounds = tester.getRect(
+      find.byKey(const ValueKey('medicine-next-slot')),
+    );
+
+    model.advance();
+    await tester.pump();
+    final promotion = find.byKey(const ValueKey('medicine-promotion'));
+    expect(tester.getRect(promotion), previewBounds);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+    final movingBounds = tester.getRect(promotion);
+    expect(movingBounds.left, lessThan(previewBounds.left));
+    expect(movingBounds.left, greaterThan(previousBounds.left));
+    expect(movingBounds.width, greaterThan(previewBounds.width));
+    expect(
+      tester.getRect(find.byKey(const ValueKey('medicine-departure'))).left,
+      lessThan(previousBounds.left),
+    );
+    await tester.pumpAndSettle();
+    expect(promotion, findsNothing);
+    expect(find.text('第一种药'), findsNothing);
+    expect(find.text('第二种药'), findsOneWidget);
+    expect(find.text('第三种药'), findsOneWidget);
+    expect(find.text('开始本药'), findsNothing);
+    expect(find.text('暂停'), findsOneWidget);
+    expect(model.stage, DispenseStage.running);
+    expect(model.count, 0);
+
+    await tester.tap(find.byKey(const ValueKey('dispense-primary')));
+    await tester.pumpAndSettle();
+    expect(model.stage, DispenseStage.paused);
+    model.advance();
+    expect(model.count, 0);
+    expect(model.currentMedicine.name, '第二种药');
+    await tester.tap(find.byKey(const ValueKey('dispense-primary')));
+    await tester.pumpAndSettle();
+    expect(find.text('暂停'), findsOneWidget);
+    model.advance();
+    await tester.pumpAndSettle();
+    expect(find.text('第二种药'), findsNothing);
+    expect(find.text('第三种药'), findsOneWidget);
+    expect(find.text('下一药'), findsNothing);
+    expect(find.text('暂停'), findsOneWidget);
+    expect(model.stage, DispenseStage.running);
+    model.advance();
+    await tester.pumpAndSettle();
+    expect(model.stage, DispenseStage.completed);
+    expect(find.byKey(const ValueKey('prepare-r1')), findsOneWidget);
+    expect(find.text('开始本药'), findsNothing);
     expect(model.count, 1);
     expect(tester.takeException(), isNull);
   });
@@ -70,24 +147,14 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: '$size, page $page');
       }
-      for (final category in ['appearance', 'device', 'about']) {
+      for (final category in ['appearance', 'about']) {
         final wideNav = find.byKey(ValueKey('settings-$category'));
         if (wideNav.evaluate().isNotEmpty) {
           await tester.tap(wideNav);
         } else {
-          final label = {
-            'appearance': '外观',
-            'device': '本机设备',
-            'about': '演示与关于',
-          }[category]!;
+          final label = {'appearance': '外观', 'about': '关于'}[category]!;
           final current = find
-              .text(
-                category == 'appearance'
-                    ? '通用'
-                    : category == 'device'
-                    ? '外观'
-                    : '本机设备',
-              )
+              .text(category == 'appearance' ? '通用' : '外观')
               .first;
           await tester.ensureVisible(current);
           await tester.tap(current);
@@ -125,7 +192,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('欢迎回来'), findsOneWidget);
     expect(find.byKey(const ValueKey('nav-0')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('fill-demo-account')));
+    await tester.enterText(
+      find.byKey(const ValueKey('login-account')),
+      'admin',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('login-password')),
+      'admin123',
+    );
     await tester.tap(find.byKey(const ValueKey('login-submit')));
     await tester.pumpAndSettle();
     model.verifyBox();
@@ -223,7 +297,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('nav-0')));
       await tester.pumpAndSettle();
       expect(find.text('退出当前用户'), findsNothing);
-      expect(find.text('长者资料与用药安排'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('page-title-prescriptions')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     });
   }
