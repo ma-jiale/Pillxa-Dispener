@@ -57,26 +57,52 @@ void main() {
     expect(model.count, 2);
   });
 
-  test('本药结束后等待换药，主动开始下一药才重置计数和开口', () {
+  test('本药结束后自动切换并开始下一药，计数和开口重置且仍可暂停', () {
     startShortTask();
     model.setOpening(.42);
     model.advance();
     model.advance();
 
-    expect(model.stage, DispenseStage.nextMedicine);
-    expect(model.currentMedicine.id, 'first');
-    expect(model.nextMedicine?.id, 'second');
-    expect(model.count, 2);
-    model.advance();
-    expect(model.count, 2);
-    expect(model.medicineIndex, 0);
-
+    expect(model.stage, DispenseStage.running);
+    expect(model.currentMedicine.id, 'second');
+    expect(model.nextMedicine, isNull);
+    expect(model.count, 0);
+    expect(model.opening, .70);
     model.start();
-
     expect(model.stage, DispenseStage.running);
     expect(model.currentMedicine.id, 'second');
     expect(model.count, 0);
-    expect(model.opening, .70);
+    model.pause();
+    model.advance();
+    expect(model.count, 0);
+    expect(model.medicineIndex, 1);
+    model.start();
+    model.advance();
+    expect(model.stage, DispenseStage.completed);
+    expect(model.count, 1);
+  });
+
+  test('自动切药不提前更新覆盖，最后一药完成才保存覆盖日期', () {
+    final resident = model.residents.first;
+    final end = DateTime(2026, 10, 29);
+    expect(
+      model.startPreparedTask(resident, [
+        resident.medicines[0].copyWith(target: 1),
+        resident.medicines[1].copyWith(target: 2),
+      ], end: end),
+      isTrue,
+    );
+    model.advance();
+    expect(model.stage, DispenseStage.running);
+    expect(model.medicineIndex, 1);
+    expect(model.count, 0);
+    expect(model.demoCoverage[resident.id], isNull);
+    model.advance();
+    expect(model.count, 1);
+    expect(model.demoCoverage[resident.id], isNull);
+    model.advance();
+    expect(model.stage, DispenseStage.completed);
+    expect(model.demoCoverage[resident.id], end);
   });
 
   test('最后一种药完成后不再增加计数，也不能再次开始', () {
@@ -140,16 +166,11 @@ void main() {
     expect(model.taskResidentBed, originalBed);
   });
 
-  for (final blockedStage in [
-    DispenseStage.running,
-    DispenseStage.paused,
-    DispenseStage.nextMedicine,
-  ]) {
+  for (final blockedStage in [DispenseStage.running, DispenseStage.paused]) {
     test('$blockedStage 时不能创建新任务或覆盖已有进度', () {
       startShortTask();
       model.advance();
       if (blockedStage == DispenseStage.paused) model.pause();
-      if (blockedStage == DispenseStage.nextMedicine) model.advance();
       final previousCount = model.count;
       final previousMedicine = model.currentMedicine.id;
 

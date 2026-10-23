@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../widgets/app_menu.dart';
 import '../widgets/profile_avatar.dart';
+import '../widgets/medicine_card_deck.dart';
 
 import '../models/demo_model.dart';
-import '../theme/app_theme.dart';
 import '../theme/app_page.dart';
+
+enum _SkipChoice { current, prepared, remaining }
 
 class DispensingPage extends StatelessWidget {
   const DispensingPage({super.key, required this.model});
@@ -27,43 +29,21 @@ class DispensingPage extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, area) {
                   final next = model.nextMedicine;
-                  final main = _currentMedicine(context);
-                  if (area.maxWidth < 800) {
-                    return Column(
-                      children: [
-                        main,
-                        if (next != null) ...[
-                          const SizedBox(height: 18),
-                          _nextMedicine(context, next, horizontal: true),
-                        ],
-                      ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: main),
-                      if (next != null) ...[
-                        const SizedBox(width: 24),
-                        SizedBox(
-                          width: 224,
-                          child: _nextMedicine(context, next),
-                        ),
-                      ],
-                    ],
+                  final stacked = area.maxWidth < 800;
+                  return MedicineCardDeck(
+                    medicineId: model.currentMedicine.id,
+                    nextMedicineId: next?.id,
+                    current: _currentMedicine(context),
+                    next: next == null
+                        ? null
+                        : _nextMedicine(context, next, horizontal: stacked),
+                    stacked: stacked,
                   );
                 },
               ),
 
               const SizedBox(height: 24),
               _actions(context),
-
-              const SizedBox(height: 24),
-              Text(
-                '交互预览 · 虚构药品与演示进度 · 未连接机器',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(fontSize: 11),
-              ),
             ],
           ),
         );
@@ -75,8 +55,6 @@ class DispensingPage extends StatelessWidget {
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PageTitle('正在分药', key: ValueKey('page-title-dispensing')),
-        const SizedBox(height: 8),
         ResidentIdentity(
           name: model.taskResidentName,
           bed: model.taskResidentBed,
@@ -152,7 +130,7 @@ class DispensingPage extends StatelessWidget {
         );
       },
     );
-    return Surface(child: child);
+    return child;
   }
 
   Widget _medicineInformation(BuildContext context, Medicine medicine) {
@@ -194,14 +172,17 @@ class DispensingPage extends StatelessWidget {
   );
 
   Widget _progressDetails(BuildContext context, Medicine medicine) {
-    final progress = model.count / medicine.target;
+    final count = model.count;
+    final stageLabel = model.stageLabel;
+    final completed = model.stage == DispenseStage.completed;
+    final progress = count / medicine.target;
     final accent = Theme.of(context).colorScheme.primary;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          model.stage == DispenseStage.completed ? '演示完成' : '已摆',
+          completed ? (model.hasSkippedMedicines ? '本次已结束' : '本次已完成') : '已摆',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
@@ -210,7 +191,7 @@ class DispensingPage extends StatelessWidget {
           spacing: 7,
           children: [
             Text(
-              '${model.count}',
+              '$count',
               style: const TextStyle(
                 fontSize: 42,
                 fontWeight: FontWeight.w500,
@@ -241,12 +222,12 @@ class DispensingPage extends StatelessWidget {
             color: accent,
             backgroundColor: const Color(0xffe7e7e7),
             borderRadius: BorderRadius.circular(100),
-            semanticsLabel: '演示摆药进度，已摆 ${model.count} 颗，共 ${medicine.target} 颗',
+            semanticsLabel: '摆药进度，已摆 $count 颗，共 ${medicine.target} 颗',
             semanticsValue: '${(value * 100).round()}',
           ),
         ),
         const SizedBox(height: 14),
-        Text(model.stageLabel, style: TextStyle(fontSize: 12, color: accent)),
+        Text(stageLabel, style: TextStyle(fontSize: 12, color: accent)),
       ],
     );
   }
@@ -272,7 +253,16 @@ class DispensingPage extends StatelessWidget {
         ),
       ],
     );
-    final image = MedicinePhoto(medicine: medicine);
+    final image = ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: ColoredBox(
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: MedicinePhoto(medicine: medicine),
+        ),
+      ),
+    );
     final content = horizontal
         ? Row(
             children: [
@@ -288,31 +278,26 @@ class DispensingPage extends StatelessWidget {
               SizedBox(height: 210, child: image),
             ],
           );
-    return Surface(child: content);
+    return content;
   }
 
   Widget _actions(BuildContext context) {
     final (label, icon, action) = switch (model.stage) {
       DispenseStage.awaitingVerification => (
-        '模拟识别药盒',
+        '等待药盒识别',
         Icons.qr_code_scanner_rounded,
         model.verifyBox,
       ),
       DispenseStage.ready => ('开始摆药', Icons.play_arrow_rounded, model.start),
       DispenseStage.running => ('暂停', Icons.pause_rounded, model.pause),
       DispenseStage.paused => ('继续摆药', Icons.play_arrow_rounded, model.start),
-      DispenseStage.nextMedicine => (
-        '开始下一药',
-        Icons.play_arrow_rounded,
-        model.start,
-      ),
       DispenseStage.completed => (
-        '重新体验',
+        '重新准备',
         Icons.replay_rounded,
         model.resetDemo,
       ),
       DispenseStage.cancelled => (
-        '重新体验',
+        '重新准备',
         Icons.replay_rounded,
         model.resetDemo,
       ),
@@ -326,7 +311,9 @@ class DispensingPage extends StatelessWidget {
           width: 210,
           child: FilledButton(
             key: const ValueKey('dispense-primary'),
-            onPressed: action,
+            onPressed: model.stage == DispenseStage.awaitingVerification
+                ? null
+                : action,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
@@ -337,6 +324,12 @@ class DispensingPage extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        OutlinedButton.icon(
+          key: const ValueKey('skip-medicine'),
+          onPressed: model.active ? () => _skip(context) : null,
+          icon: const Icon(Icons.skip_next_rounded, size: 20),
+          label: const Text('跳过'),
         ),
         OutlinedButton.icon(
           key: const ValueKey('adjust-opening'),
@@ -352,14 +345,14 @@ class DispensingPage extends StatelessWidget {
           tooltip: '更多操作',
           actions: [
             AppMenuAction(
-              '查看演示计划',
+              '查看本次计划',
               () => _showPlan(context),
               icon: Icons.list_alt_rounded,
             ),
             if (model.stage != DispenseStage.cancelled &&
                 model.stage != DispenseStage.completed)
               AppMenuAction(
-                '结束本次演示',
+                '结束本次摆药',
                 () => _cancel(context),
                 icon: Icons.stop_circle_outlined,
               ),
@@ -367,6 +360,137 @@ class DispensingPage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _skip(BuildContext context) async {
+    if (!model.active) return;
+    final task = model.taskMedicines;
+    final index = model.medicineIndex;
+    final medicine = model.currentMedicine;
+    final wasRunning = model.stage == DispenseStage.running;
+    final remaining = task.length - index;
+    final messenger = ScaffoldMessenger.of(context);
+    model.pause();
+    var markPrepared = false;
+    final choice = await showDialog<_SkipChoice>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          scrollable: true,
+          title: const Text('跳过当前药物？'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '${model.taskResidentName}  ${model.taskResidentBed}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xff737373),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  medicine.name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${medicine.strength} · 已摆 ${model.count} / ${medicine.target} 颗',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xff737373),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CheckboxListTile(
+                  key: const ValueKey('skip-mark-prepared'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: markPrepared,
+                  onChanged: (value) =>
+                      update(() => markPrepared = value ?? false),
+                  title: const Text(
+                    '将此药标记为已摆好',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  subtitle: const Text(
+                    '勾选表示已人工核对本次用量全部摆齐。',
+                    style: TextStyle(fontSize: 12, color: Color(0xff737373)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  key: const ValueKey('skip-resident'),
+                  onPressed: () =>
+                      Navigator.pop(context, _SkipChoice.remaining),
+                  icon: const Icon(Icons.fast_forward_rounded, size: 18),
+                  label: const Text('跳过该长者所有剩余药物'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '包括当前药，共 $remaining 种；均记为跳过，不标记已摆好。',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xff737373),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              key: const ValueKey('skip-confirm'),
+              onPressed: () => Navigator.pop(
+                context,
+                markPrepared ? _SkipChoice.prepared : _SkipChoice.current,
+              ),
+              child: Text(markPrepared ? '标记已摆好' : '确认跳过'),
+            ),
+          ],
+        ),
+      ),
+    );
+    // Do not apply a delayed decision to another medicine or a replaced task.
+    if (!identical(task, model.taskMedicines) ||
+        index != model.medicineIndex ||
+        !model.active) {
+      return;
+    }
+    if (choice == null) {
+      if (wasRunning) model.start();
+      return;
+    }
+    if (choice == _SkipChoice.remaining) {
+      model.skipRemaining();
+    } else {
+      model.skipCurrent(
+        markPrepared: choice == _SkipChoice.prepared,
+        startNext: wasRunning,
+      );
+    }
+    if (model.active) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(switch (choice) {
+            _SkipChoice.remaining => '已跳过该长者剩余 $remaining 种药物',
+            _SkipChoice.prepared => '已将${medicine.name}标记为已摆好',
+            _SkipChoice.current => '已跳过${medicine.name}',
+          }),
+        ),
+      );
   }
 
   Future<void> _adjustOpening(BuildContext context) => showDialog<void>(
@@ -384,7 +508,7 @@ class DispensingPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                '演示设备刻度，数值越小开口越大。',
+                '数值越小，开口越大。',
                 style: TextStyle(fontSize: 13, color: Color(0xff777777)),
               ),
               const SizedBox(height: 24),
@@ -399,10 +523,6 @@ class DispensingPage extends StatelessWidget {
                 divisions: 100,
                 label: model.opening.toStringAsFixed(2),
                 onChanged: model.setOpening,
-              ),
-              const Text(
-                '本次调整仅改变预览，不发送设备命令。',
-                style: TextStyle(fontSize: 12, color: Color(0xff777777)),
               ),
             ],
           ),
@@ -421,7 +541,7 @@ class DispensingPage extends StatelessWidget {
     context: context,
     builder: (context) => AlertDialog(
       scrollable: true,
-      title: const Text('本次演示计划'),
+      title: const Text('本次摆药计划'),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -438,15 +558,24 @@ class DispensingPage extends StatelessWidget {
                     Expanded(
                       child: Text('${medicine.name} · ${medicine.form}'),
                     ),
-                    Text('${medicine.target} 颗'),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('${medicine.target} 颗'),
+                        if (model.medicineResults[medicine.id]
+                            case final result?)
+                          Text(
+                            result.label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xff737373),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ),
-            const Divider(),
-            const Text(
-              '固定演示数量，用于体验界面；真实处方计划与覆盖日期尚未接入。',
-              style: TextStyle(fontSize: 12, color: Color(0xff777777)),
             ),
           ],
         ),
@@ -464,7 +593,7 @@ class DispensingPage extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('结束本次演示？'),
+        title: const Text('结束本次摆药？'),
         content: const Text('当前进度会保留为已取消，不会显示为完成。'),
         actions: [
           TextButton(
@@ -473,7 +602,7 @@ class DispensingPage extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('结束演示'),
+            child: const Text('结束摆药'),
           ),
         ],
       ),
@@ -492,23 +621,33 @@ class MedicinePhoto extends StatelessWidget {
       return Container(
         color: const Color(0xfff6f6f6),
         alignment: Alignment.center,
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.medication_outlined, size: 44, color: Color(0xffa0a0a0)),
-            SizedBox(height: 12),
-            Text(
-              '尚未添加药品图片',
-              style: TextStyle(fontSize: 12, color: Color(0xff777777)),
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, bounds) {
+            const icon = Icon(
+              Icons.medication_outlined,
+              size: 44,
+              color: Color(0xffa0a0a0),
+            );
+            if (bounds.maxHeight < 120 || bounds.maxWidth < 120) return icon;
+            return const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                icon,
+                SizedBox(height: 12),
+                Text(
+                  '尚未添加药品图片',
+                  style: TextStyle(fontSize: 12, color: Color(0xff777777)),
+                ),
+              ],
+            );
+          },
         ),
       );
     }
     return Image.asset(
       asset,
       fit: BoxFit.contain,
-      semanticLabel: '${medicine.name} 药品演示图',
+      semanticLabel: '${medicine.name} 药品图片',
     );
   }
 }

@@ -119,9 +119,32 @@ enum DispenseStage {
   ready,
   running,
   paused,
-  nextMedicine,
   completed,
   cancelled,
+}
+
+enum MedicineOutcome { completed, confirmedPrepared, skipped }
+
+enum BoxFeedback { disconnected, opening, waiting, match, other, failed }
+
+class MedicineResult {
+  const MedicineResult({
+    required this.outcome,
+    required this.countedParticles,
+    this.confirmedParticles,
+  });
+
+  final MedicineOutcome outcome;
+
+  /// Simulated counter observations are retained even after manual confirmation.
+  final int countedParticles;
+  final int? confirmedParticles;
+
+  String get label => switch (outcome) {
+    MedicineOutcome.completed => '已完成',
+    MedicineOutcome.confirmedPrepared => '人工标记已摆好',
+    MedicineOutcome.skipped => '已跳过',
+  };
 }
 
 /// In-memory preview data only. No network, hardware commands or actual records.
@@ -232,8 +255,16 @@ class DemoModel extends ChangeNotifier {
   bool startTomorrow = false;
   Timer? _ticker;
   final Map<String, DateTime> demoCoverage = {};
+  // Read-only in the UI. A future device adapter supplies session observations.
+  final boxFeedback = ValueNotifier(BoxFeedback.disconnected);
   String? _preparedResidentId;
   DateTime? _preparedEnd;
+  final Map<String, MedicineResult> _medicineResults = {};
+  Map<String, MedicineResult> get medicineResults =>
+      Map.unmodifiable(_medicineResults);
+  bool get hasSkippedMedicines => _medicineResults.values.any(
+    (result) => result.outcome == MedicineOutcome.skipped,
+  );
 
   bool startPreparedTask(
     Resident resident,
@@ -245,6 +276,7 @@ class DemoModel extends ChangeNotifier {
     taskResidentBed = resident.bed;
     taskResidentAvatar = resident.avatarAsset;
     taskMedicines = List.unmodifiable(medicines);
+    _medicineResults.clear();
     _preparedResidentId = resident.id;
     _preparedEnd = end;
     medicineIndex = 0;
@@ -260,16 +292,13 @@ class DemoModel extends ChangeNotifier {
       ? taskMedicines[medicineIndex + 1]
       : null;
   bool get active =>
-      stage == DispenseStage.running ||
-      stage == DispenseStage.paused ||
-      stage == DispenseStage.nextMedicine;
+      stage == DispenseStage.running || stage == DispenseStage.paused;
   String get stageLabel => switch (stage) {
     DispenseStage.awaitingVerification => '等待药盒识别',
     DispenseStage.ready => '已核验，可以开始',
     DispenseStage.running => '摆药进行中',
     DispenseStage.paused => '已暂停',
-    DispenseStage.nextMedicine => '本药已完成',
-    DispenseStage.completed => '演示已完成',
+    DispenseStage.completed => hasSkippedMedicines ? '本次已结束 · 有跳过药物' : '本次已完成',
     DispenseStage.cancelled => '本次已取消',
   };
 
@@ -330,6 +359,7 @@ class DemoModel extends ChangeNotifier {
     if (preparationIssue(resident) != null) return false;
     _preparedResidentId = null;
     _preparedEnd = null;
+    _medicineResults.clear();
     taskResidentName = resident.name;
     taskResidentBed = resident.bed;
     taskResidentAvatar = resident.avatarAsset;
@@ -351,11 +381,7 @@ class DemoModel extends ChangeNotifier {
   }
 
   void start() {
-    if (stage == DispenseStage.nextMedicine) {
-      medicineIndex++;
-      count = 0;
-      opening = .70;
-    } else if (stage != DispenseStage.ready && stage != DispenseStage.paused) {
+    if (stage != DispenseStage.ready && stage != DispenseStage.paused) {
       return;
     }
     stage = DispenseStage.running;
@@ -373,15 +399,55 @@ class DemoModel extends ChangeNotifier {
     count++;
     if (count >= currentMedicine.target) {
       count = currentMedicine.target;
-      stage = nextMedicine == null
-          ? DispenseStage.completed
-          : DispenseStage.nextMedicine;
-      if (stage == DispenseStage.completed &&
+      _medicineResults[currentMedicine.id] = MedicineResult(
+        outcome: MedicineOutcome.completed,
+        countedParticles: count,
+      );
+      _moveToNext(startNext: true);
+    }
+    notifyListeners();
+  }
+
+  void _moveToNext({required bool startNext}) {
+    if (nextMedicine != null) {
+      medicineIndex++;
+      count = 0;
+      opening = .70;
+      stage = startNext ? DispenseStage.running : DispenseStage.paused;
+    } else {
+      stage = DispenseStage.completed;
+      // A resident-wide coverage date is only valid when every medicine is done.
+      if (_medicineResults.length == taskMedicines.length &&
+          !hasSkippedMedicines &&
           _preparedResidentId != null &&
           _preparedEnd != null) {
         demoCoverage[_preparedResidentId!] = _preparedEnd!;
       }
     }
+  }
+
+  void skipCurrent({bool markPrepared = false, bool startNext = true}) {
+    if (!active) return;
+    _medicineResults[currentMedicine.id] = MedicineResult(
+      outcome: markPrepared
+          ? MedicineOutcome.confirmedPrepared
+          : MedicineOutcome.skipped,
+      countedParticles: count,
+      confirmedParticles: markPrepared ? currentMedicine.target : null,
+    );
+    _moveToNext(startNext: startNext);
+    notifyListeners();
+  }
+
+  void skipRemaining() {
+    if (!active) return;
+    for (var index = medicineIndex; index < taskMedicines.length; index++) {
+      _medicineResults[taskMedicines[index].id] = MedicineResult(
+        outcome: MedicineOutcome.skipped,
+        countedParticles: index == medicineIndex ? count : 0,
+      );
+    }
+    stage = DispenseStage.completed;
     notifyListeners();
   }
 
@@ -425,6 +491,7 @@ class DemoModel extends ChangeNotifier {
   @override
   void dispose() {
     _ticker?.cancel();
+    boxFeedback.dispose();
     super.dispose();
   }
 }

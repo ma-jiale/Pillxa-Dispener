@@ -65,15 +65,15 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('关闭').last);
       await tester.pumpAndSettle();
-      for (final label in [
-        '模拟反馈：其他长者药盒',
-        '模拟反馈：本人药盒',
-        '模拟反馈：未放入 / 已取出',
-        '模拟反馈：本人药盒',
+      expect(find.text('摆药机未连接，请先连接设备'), findsOneWidget);
+      expect(find.byKey(const ValueKey('box-feedback')), findsNothing);
+      for (final feedback in [
+        BoxFeedback.other,
+        BoxFeedback.match,
+        BoxFeedback.waiting,
+        BoxFeedback.match,
       ]) {
-        await tester.tap(find.byKey(const ValueKey('box-feedback')));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text(label).last);
+        model.boxFeedback.value = feedback;
         await tester.pumpAndSettle();
         expect(
           tester
@@ -82,7 +82,7 @@ void main() {
                   )
                   .onPressed !=
               null,
-          label == '模拟反馈：本人药盒',
+          feedback == BoxFeedback.match,
         );
       }
       await tester.tap(find.byKey(const ValueKey('confirm-dispense')));
