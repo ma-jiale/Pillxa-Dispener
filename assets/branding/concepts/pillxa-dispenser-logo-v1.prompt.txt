@@ -1,0 +1,19 @@
+Pillxa dispenser logo concept v1
+Date: 2026-10-23
+Method: built-in image_gen tool; transparent PNG.
+Status: design concept; not applied to the app.
+Current source: apps/client/lib/widgets/dispenser_icon.dart
+Reference: .tools/ui-review/devices-1280-home.png, top-right tiny device icon only.
+Output: pillxa-dispenser-logo-v1.png
+
+Final generation prompt:
+Use case: logo-brand.
+Asset type: new Pillxa logo concept, a refined horizontal brand lockup for a medication dispenser application.
+Reference image: the attached application screenshot is ONLY a source for the tiny device icon at the TOP RIGHT beside the disconnected status. Ignore its upper-left abstract P logo and every other UI element. Do not reproduce the screenshot.
+Primary request: Design one polished minimalist logo based directly on that tiny medication dispenser front icon. Preserve its FOUR identifiable elements: rounded rectangular machine enclosure, two circular ports side by side near the top, a single generous downward-curving bowl/hopper arc below them, and a short horizontal tray slot near the bottom. The image should feel calm, capable, friendly and precise.
+Geometry guide from current icon: coordinate space 32 by 32; enclosure from (3,4) to (29,28) with corner radius 4; circular ports centered at (9,10) and (23,10); hopper arc from (7,14) curving through (10,21) and (22,21) to (25,14); short rounded rectangular tray from (7,22) to (25,25). Use this as the identity reference, then optically refine spacing and a slightly bolder consistent monoline so it is a deliberate logo. Preserve clear gaps between the arc and tray, and between the tray and enclosure. Balanced bilateral symmetry. The tray remains clearly a narrow outlined slot.
+Composition: exactly ONE black symbol on the left and the word Pillxa on the right, aligned as a well-balanced horizontal lockup with generous clear space around it. Wordmark in a sophisticated geometric sans serif, semibold, slightly rounded terminals, careful kerning, capital P followed by lowercase illxa. Icon approximately 1.45 times the cap-height of the wordmark. Icon-to-wordmark gap about 0.3 icon widths. Make the lockup large and clear in a wide canvas, using about 80 percent of width.
+Text verbatim: "Pillxa". No other text.
+Palette: solid near-black #111111 only, on a genuinely transparent background.
+Rendering: exceptionally clean flat 2D vector-like graphics, crisp smooth contours, pure solid stroke and fill, high resolution, no texture.
+Avoid: gradients, shadows, bevels, 3D, product mockups, presentation boards, extra variants, labels, annotations, slogans, medical crosses, extra pills, bluetooth symbols, additional eyes, outer app tile, unrelated abstract P symbol. This is a logo asset, not a screenshot.

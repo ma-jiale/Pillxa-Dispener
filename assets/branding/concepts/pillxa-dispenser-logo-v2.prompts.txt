@@ -1,0 +1,33 @@
+Pillxa logo concepts v2
+Date: 2026-10-23
+Method: built-in image_gen, one generation per concept.
+Status: design candidates; white-background previews, not applied to application.
+Goal: offer four different logo directions informed by the user's Mac Finder references and annotated previous Pillxa logo.
+Reference images are retained in references/. Previous concept: pillxa-dispenser-logo-v1.png.
+Visual inspection: all four retain a rounded machine housing, two round ports and correct Pillxa spelling. A uses connected lines; B uses black/white negative space; C merges the hopper and tray; D uses pale blue panels with an integrated tray smile.
+
+Shared final prompt:
+Use case: logo-brand. Generate a NEW original concept for the Pillxa medication dispenser brand, informed by the supplied references, not an edit of the screenshots.
+Input images: Image 1 is the existing Pillxa machine-face logo and correct brand spelling; Image 2 is the modern Mac Finder icon as a design-language reference; Image 3 is the older Finder icon as a reference for a simple bent center line. Do not reproduce Apple or Finder branding verbatim.
+User goal: rework the existing machine face, especially its inner bowl and separate bottom tray, with the memorable simplicity and friendly facial geometry of the Mac references. Preserve the recognisable compact rounded machine housing and two circular observation holes. Explore an original center turn / dispensing channel and an integrated smiling hopper, with fewer disconnected details.
+Presentation: one single centered logo concept on a completely opaque pure-white square 1024x1024 canvas. Large symbol centered above the text. The symbol occupies approximately 410x410 pixels at x307 to717, y210 to620. The wordmark below reads exactly "Pillxa", set in a neat near-black geometric sans serif, medium/semibold weight, about 245 pixels wide, centered at y720. No other words, captions, variant letters, measurements or comparison panels. Large clean margins. Orthographic flat 2D vector-quality paths, crisp smooth edges, thoughtful optical spacing. No 3D, no bevel, no photographic mockup, no texture or cast shadows. This is a design preview with white background. Never reproduce red annotation strokes.
+
+A · 线条转折
+Output: pillxa-dispenser-logo-v2-a-line.png
+Direction prompt:
+DIRECTION A — minimalist continuous LINEWORK. Monochrome near-black on white. Draw a confident rounded-square machine enclosure in a uniform moderately bold monoline (roughly 20 pixels at the specified symbol size), two small round solid viewing ports. Between the ports, a short central line descends from the upper inner area, makes ONE clean soft step to the right like a simplified dispensing chute, then joins the lowest central point of a generous shallow upward-ended smiling hopper arc. This junction should be a deliberate calm T-like join, no crossed-over strokes or tangles. The center line stops at the smile and never crosses below it. Remove the old disconnected horizontal rectangular tray entirely. Maintain an open white interior, minimal line count, machine identity. This concept should look like a graceful distinctive line-drawn machine face, not a filled tile.
+
+B · 黑白分面
+Output: pillxa-dispenser-logo-v2-b-split.png
+Direction prompt:
+DIRECTION B — bold TWO-TONE NEGATIVE SPACE. One nearly square machine body with generous rounded corners; its left approximately 52% is SOLID near-black, its right is white and defined at the outer right edge by a near-black outline of moderate weight. The boundary between the two halves forms a single subtle dispensing-chute step, softened but more architectural than Finder's curved nose. Two equally sized circular observation ports: left port white knocked out of the black panel, right port near-black in the white panel. A single wide shallow smiling hopper arc crosses the lower third, rendered white on the black left half and near-black on the white right half, with clean continuity. No separate rectangular tray and no extra vertical interior stroke. Build a bold, compact geometric icon that has strong silhouette, very little linework, and reads as a machine. All black/white, no gray and no color.
+
+C · 药盘融合
+Output: pillxa-dispenser-logo-v2-c-hopper.png
+Direction prompt:
+DIRECTION C — geometric DISPENSER TRAY as smile, original and SYMMETRICAL. Near-black and white only. A clean moderately bold rounded-square enclosure, with two small circular viewing ports. Lower inside the housing, create one elegant solid black shallow crescent/bowl whose two ends lift slightly as a friendly smile. Its smoothly rounded bottom forms a subtly flat tray base, unifying smile and medication tray in ONE shape instead of two separate mouths. From exactly between the eyes a short vertical round-ended dispensing channel descends, makes one small 90-degree soft rightward step, then drops toward the bowl but leaves a carefully spaced white gap before the bowl (no crossing). Use a very small white vertical pill-shaped negative-space slot within the central lower bowl to subtly suggest the outlet, integrated into the bowl silhouette, never a separate floating pill. Keep the overall mark more machine-like and grounded, with a lower center of gravity than the Finder reference. Highly reduced geometry, no decorative outer shadows.
+
+D · 柔和蓝白
+Output: pillxa-dispenser-logo-v2-d-blue.png
+Direction prompt:
+DIRECTION D — calm BLUE AND WHITE APP SYMBOL. Use a compact rounded-square machine body with a solid soft cyan-blue left panel (#65C9E7) and a very pale icy-blue right panel (#EAF4FA), no black outer border. The two panels meet at an original clean stepped dispensing channel boundary: nearly vertical upper section with a short rounded rightward jog midway down, then returns toward the center into the lower body. Do not copy Finder's profile contour. Place two small round near-black viewing ports in the top third, keeping round eyes rather than Finder's vertical ticks. A short wide near-black smile bowl sits in the lower half; its central bottom subtly flattens into a tiny tray shelf so the smile and tray are ONE integrated shape. It must retain the medication machine face identity rather than become a generic Finder clone. Flat colors with at most an almost imperceptible lightening toward the top, no outlines between color panels, no gloss, no cast shadow. Clean, gentle, approachable icon, suitable for a care-focused medication dispenser. Wordmark remains near-black.
