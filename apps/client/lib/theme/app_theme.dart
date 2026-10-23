@@ -20,6 +20,11 @@ ThemeData createTheme({Color accent = const Color(0xff191919)}) {
       error: const Color(0xffa62929),
     ),
     scaffoldBackgroundColor: const Color(0xfffafafa),
+    scrollbarTheme: const ScrollbarThemeData(
+      thumbColor: WidgetStatePropertyAll(Color(0xffbdbdbd)),
+      thickness: WidgetStatePropertyAll(3),
+      radius: Radius.circular(4),
+    ),
     splashFactory: NoSplash.splashFactory,
     highlightColor: Colors.transparent,
     hoverColor: const Color(0x08000000),

@@ -4,6 +4,7 @@ import '../widgets/app_menu.dart';
 
 import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_page.dart';
 import '../widgets/prescription_forms.dart';
 import '../widgets/profile_avatar.dart';
 
@@ -137,18 +138,12 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
       final selected = residents
           .where((resident) => resident.id == widget.model.selectedResidentId)
           .firstOrNull;
-      final smallScreen = MediaQuery.sizeOf(context).width < 700;
       return SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          smallScreen ? 20 : 32,
-          smallScreen ? 28 : 40,
-          smallScreen ? 20 : 32,
-          28,
-        ),
+        padding: AppPage.insets(context),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('处方管理', style: Theme.of(context).textTheme.headlineMedium),
+            const PageTitle('处方管理', key: ValueKey('page-title-prescriptions')),
             const SizedBox(height: 6),
             const Text('长者资料与用药安排', style: TextStyle(color: Color(0xff737373))),
             const SizedBox(height: 28),
@@ -263,28 +258,11 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
             child: Row(
               children: [
-                ProfileAvatar(
-                  asset: resident.avatarAsset,
-                  label: '${resident.name}头像',
-                ),
-                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        resident.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        resident.bed.isEmpty ? '床位未填写' : resident.bed,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xff858585),
-                        ),
-                      ),
-                    ],
+                  child: ResidentIdentity(
+                    name: resident.name,
+                    bed: resident.bed,
+                    asset: resident.avatarAsset,
                   ),
                 ),
                 if (selected)
@@ -314,38 +292,12 @@ class _PrescriptionsPageState extends State<PrescriptionsPage> {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              final identity = Row(
-                children: [
-                  ProfileAvatar(
-                    asset: resident.avatarAsset,
-                    label: '${resident.name}头像',
-                    size: 46,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          resident.name,
-                          style: Theme.of(context).textTheme.titleLarge,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          resident.bed.isEmpty ? '床位未填写' : resident.bed,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xff858585),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              final identity = ResidentIdentity(
+                name: resident.name,
+                bed: resident.bed,
+                asset: resident.avatarAsset,
+                size: 44,
+                nameSize: 18,
               );
               final edit = TextButton.icon(
                 onPressed: () => _editResident(resident),

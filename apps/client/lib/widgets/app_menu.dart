@@ -95,6 +95,7 @@ class AppSelect<T> extends StatelessWidget {
     required this.label,
     this.showLabel = false,
     this.validator,
+    this.enabled = true,
   });
   final T value;
   final List<AppSelectOption<T>> options;
@@ -102,6 +103,7 @@ class AppSelect<T> extends StatelessWidget {
   final String label;
   final bool showLabel;
   final FormFieldValidator<T>? validator;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) => FormField<T>(
@@ -159,9 +161,11 @@ class AppSelect<T> extends StatelessWidget {
               builder: (context, controller, _) => Semantics(
                 label: label,
                 child: OutlinedButton(
-                  onPressed: () => controller.isOpen
-                      ? controller.close()
-                      : controller.open(),
+                  onPressed: !enabled
+                      ? null
+                      : () => controller.isOpen
+                            ? controller.close()
+                            : controller.open(),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 44),
                     padding: const EdgeInsets.symmetric(

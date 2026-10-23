@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_page.dart';
+
 import '../models/demo_model.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_menu.dart';
@@ -121,11 +123,11 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, bounds) {
         if (bounds.maxWidth < 720) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
+            padding: AppPage.insets(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('设置', style: Theme.of(context).textTheme.headlineMedium),
+                const PageTitle('设置', key: ValueKey('page-title-settings')),
                 const SizedBox(height: 20),
                 _searchField(),
                 const SizedBox(height: 12),
@@ -159,13 +161,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: PageTitle(
                           '设置',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          key: ValueKey('page-title-settings'),
                         ),
                       ),
                       const SizedBox(height: 24),
